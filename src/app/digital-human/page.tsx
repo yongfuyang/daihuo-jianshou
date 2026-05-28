@@ -71,6 +71,21 @@ interface GenerationRecord {
   taskId?: string;
 }
 
+// 产品展示模式
+const DISPLAY_MODES = [
+  { id: "full-body", name: "全身展示", desc: "展示完整人物形象", icon: "🧍" },
+  { id: "half-body", name: "半身展示", desc: "腰部以上，更聚焦", icon: "🧑" },
+  { id: "product-focus", name: "产品特写", desc: "数字人+产品同框", icon: "📦" },
+  { id: "green-screen", name: "绿幕模式", desc: "透明背景，后期合成", icon: "🟩" },
+];
+
+// 一键导出平台配置
+const EXPORT_PLATFORMS = [
+  { id: "douyin", name: "抖音", icon: "🎵", color: "from-gray-900 to-gray-700" },
+  { id: "kuaishou", name: "快手", icon: "📹", color: "from-orange-500 to-yellow-500" },
+  { id: "xiaohongshu", name: "小红书", icon: "📕", color: "from-red-500 to-pink-500" },
+];
+
 const MAX_TEXT_LENGTH = 500;
 const STORAGE_KEY = "daihuo-dh-history";
 
@@ -88,6 +103,11 @@ export default function DigitalHumanPage() {
   const [motionStyle, setMotionStyle] = useState("talking");
   const [selectedVoice, setSelectedVoice] = useState("female-tianmei");
   const [selectedPlatform, setSelectedPlatform] = useState("9:16");
+  const [displayMode, setDisplayMode] = useState("full-body");
+  const [introUrl, setIntroUrl] = useState("");
+  const [outroUrl, setOutroUrl] = useState("");
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [isExporting, setIsExporting] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -237,6 +257,30 @@ export default function DigitalHumanPage() {
     a.click();
   }, [resultUrl]);
 
+  // 翻译视频
+  const handleTranslate = useCallback(async () => {
+    if (!resultUrl) return;
+    setIsTranslating(true);
+    try {
+      // TODO: 接入视频翻译 API
+      alert("视频翻译功能即将上线，敬请期待！");
+    } finally {
+      setIsTranslating(false);
+    }
+  }, [resultUrl]);
+
+  // 一键导出到平台
+  const handleExport = useCallback(async (platformId: string) => {
+    if (!resultUrl) return;
+    setIsExporting(platformId);
+    try {
+      // TODO: 接入各平台导出 API
+      alert(`${EXPORT_PLATFORMS.find(p => p.id === platformId)?.name || platformId} 导出功能即将上线，敬请期待！`);
+    } finally {
+      setIsExporting(null);
+    }
+  }, [resultUrl]);
+
   // 脚本字数
   const charCount = script.length;
   const charPercent = Math.round((charCount / MAX_TEXT_LENGTH) * 100);
@@ -370,7 +414,7 @@ export default function DigitalHumanPage() {
           高级选项
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* TTS 音色 */}
           <div>
             <p className="text-sm font-medium mb-2">🎙️ 语音音色</p>
@@ -420,7 +464,70 @@ export default function DigitalHumanPage() {
               ))}
             </div>
           </div>
+
+          {/* 展示模式 */}
+          <div>
+            <p className="text-sm font-medium mb-2">🎬 展示方式</p>
+            <div className="space-y-1.5">
+              {DISPLAY_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setDisplayMode(m.id)}
+                  className={`w-full px-3 py-2 rounded-lg text-left text-sm border transition-all ${displayMode === m.id ? "bg-primary/10 border-primary" : "hover:border-primary/50"}`}
+                >
+                  {m.icon} <span className="font-medium">{m.name}</span>
+                  <span className="text-muted-foreground ml-1 text-xs">— {m.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
+      </section>
+
+      {/* ===== Step 3.5: 品牌设置 ===== */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">🎨</span>
+          品牌设置
+        </h2>
+        <Card>
+          <CardContent className="p-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">🎬 片头视频</label>
+                <input
+                  type="url"
+                  value={introUrl}
+                  onChange={(e) => setIntroUrl(e.target.value)}
+                  placeholder="https://example.com/intro.mp4"
+                  disabled={isGenerating}
+                  className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                />
+                <p className="text-xs text-muted-foreground">输入片头视频 URL，生成时自动拼接在视频开头</p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">🎬 片尾视频</label>
+                <input
+                  type="url"
+                  value={outroUrl}
+                  onChange={(e) => setOutroUrl(e.target.value)}
+                  placeholder="https://example.com/outro.mp4"
+                  disabled={isGenerating}
+                  className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                />
+                <p className="text-xs text-muted-foreground">输入片尾视频 URL，生成时自动拼接在视频末尾</p>
+              </div>
+            </div>
+            {(introUrl || outroUrl) && (
+              <div className="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-500/10 rounded-lg px-3 py-2">
+                <span>✅</span>
+                <span>
+                  已配置片{introUrl ? "头" : ""}{introUrl && outroUrl ? "、" : ""}{outroUrl ? "尾" : ""}视频，生成时将自动拼接
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </section>
 
       {/* ===== 生成按钮 + 进度 ===== */}
@@ -469,9 +576,35 @@ export default function DigitalHumanPage() {
           <Card>
             <CardContent className="p-4 space-y-4">
               <video src={resultUrl} controls className="w-full max-w-md mx-auto rounded-xl" />
-              <div className="flex justify-center gap-3">
-                <Button onClick={handleDownload}>📥 下载视频</Button>
-                <Button variant="outline" onClick={() => { setResultUrl(null); setProgress(0); }}>🔄 重新生成</Button>
+              <div className="flex flex-col gap-3">
+                {/* 主操作行 */}
+                <div className="flex justify-center gap-3">
+                  <Button onClick={handleDownload}>📥 下载视频</Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleTranslate}
+                    disabled={isTranslating}
+                  >
+                    {isTranslating ? "⏳ 翻译中..." : "🌐 翻译此视频"}
+                  </Button>
+                  <Button variant="outline" onClick={() => { setResultUrl(null); setProgress(0); }}>🔄 重新生成</Button>
+                </div>
+                {/* 多平台导出行 */}
+                <div className="flex justify-center gap-2">
+                  <span className="text-xs text-muted-foreground self-center mr-1">一键导出至：</span>
+                  {EXPORT_PLATFORMS.map((p) => (
+                    <Button
+                      key={p.id}
+                      variant="outline"
+                      size="sm"
+                      disabled={isExporting !== null}
+                      onClick={() => handleExport(p.id)}
+                      className="text-xs"
+                    >
+                      {isExporting === p.id ? "⏳" : p.icon} {p.name}
+                    </Button>
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>

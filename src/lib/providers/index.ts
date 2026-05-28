@@ -10,6 +10,9 @@ import { VolcEngineProvider } from './volcengine'
 import { AlibabaProvider } from './alibaba'
 import { SiliconFlowProvider } from './siliconflow'
 import { SiliconFlowDigitalHuman } from './digital-human'
+import { SiliconFlowLipSync } from './lipsync'
+import { SiliconFlowVoiceClone } from './voice-clone'
+import { SiliconFlowBackground } from './background'
 
 // ==================== Provider 注册表 ====================
 
@@ -143,6 +146,9 @@ export { FalAIProvider } from './fal-ai'
 export { VolcEngineProvider } from './volcengine'
 export { AlibabaProvider } from './alibaba'
 export { SiliconFlowProvider } from './siliconflow'
+export { SiliconFlowLipSync } from './lipsync'
+export { SiliconFlowVoiceClone } from './voice-clone'
+export { SiliconFlowBackground } from './background'
 
 // ==================== 数字人 Provider ====================
 registerProvider({
@@ -161,6 +167,66 @@ registerProvider({
       description: '高质量图生视频，适合数字人口播',
       supportedModes: ['image-to-video' as const],
       pricing: { unit: '次', price: 0.5, currency: 'CNY' },
+    },
+  ],
+})
+
+registerProvider({
+  id: 'siliconflow-lipsync',
+  name: '硅基流动唇形同步',
+  icon: '👄',
+  description: '基于 Wan 模型的音频驱动唇形同步，静态形象图 + TTS 音频 → 口播视频',
+  category: 'digital-human' as const,
+  factory: (config) => new SiliconFlowLipSync(config),
+  defaultConfig: { apiEndpoint: 'https://api.siliconflow.cn/v1' },
+  supportedModes: ['image-to-video' as const],
+  models: [
+    {
+      id: 'wan-i2v-14b-lipsync',
+      name: 'Wan2.1-I2V-14B 唇形同步',
+      description: '音频驱动唇形同步，精准口型匹配',
+      supportedModes: ['image-to-video' as const],
+      pricing: { unit: '次', price: 0.5, currency: 'CNY' },
+    },
+  ],
+})
+
+registerProvider({
+  id: 'siliconflow-voice-clone',
+  name: '硅基流动声音克隆',
+  icon: '🎙️',
+  description: '基于 CosyVoice2 模型的 3 秒声音克隆，支持音色提取和 TTS 合成',
+  category: 'digital-human' as const,
+  factory: (config) => new SiliconFlowVoiceClone(config),
+  defaultConfig: { apiEndpoint: 'https://api.siliconflow.cn/v1' },
+  supportedModes: ['text-to-audio' as const],
+  models: [
+    {
+      id: 'cosyvoice2-0.5b',
+      name: 'CosyVoice2-0.5B',
+      description: '3 秒声音克隆，支持多语言 TTS 合成',
+      supportedModes: ['text-to-audio' as const],
+      pricing: { unit: '次', price: 0.1, currency: 'CNY' },
+    },
+  ],
+})
+
+registerProvider({
+  id: 'siliconflow-background',
+  name: '硅基流动背景替换',
+  icon: '🖼️',
+  description: '基于 BRIA 模型的智能背景替换，支持虚化、纯色和自定义背景图三种模式',
+  category: 'digital-human' as const,
+  factory: (config) => new SiliconFlowBackground(config),
+  defaultConfig: { apiEndpoint: 'https://api.siliconflow.cn/v1' },
+  supportedModes: ['image-to-image' as const],
+  models: [
+    {
+      id: 'bria-2.3',
+      name: 'BRIA-2.3',
+      description: '高质量背景替换，支持虚化/纯色/自定义背景',
+      supportedModes: ['image-to-image' as const],
+      pricing: { unit: '次', price: 0.2, currency: 'CNY' },
     },
   ],
 })
