@@ -17,6 +17,13 @@
   --sar: env(safe-area-inset-right, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
   --sal: env(safe-area-inset-left, 0px);
+
+  /* 图标尺寸变量 */
+  --icon-xs: 16px;
+  --icon-sm: 20px;
+  --icon-md: 24px;
+  --icon-lg: 32px;
+  --icon-xl: 48px;
 }
 
 @theme inline {
@@ -131,6 +138,13 @@
   --brand: #6366f1;
   --brand-foreground: #ffffff;
   --amber: #f59e0b;
+
+  /* 图标颜色变量 */
+  --icon-primary: #6366f1;
+  --icon-secondary: #334155;
+  --icon-muted: #94a3b8;
+  --icon-success: #10b981;
+  --icon-error: #ef4444;
 }
 
 /* ==================== 暗色主题（优化对比度） ==================== */
@@ -170,6 +184,13 @@
   --brand: #818cf8;
   --brand-foreground: #ffffff;
   --amber: #fbbf24;
+
+  /* 图标颜色变量 */
+  --icon-primary: #818cf8;
+  --icon-secondary: #d6c9fa;
+  --icon-muted: #6b7a99;
+  --icon-success: #34d399;
+  --icon-error: #f87171;
 }
 
 /* ==================== Base Layer ==================== */
@@ -452,4 +473,177 @@
     padding-left: max(var(--sal), 8px);
     padding-right: max(var(--sar), 8px);
   }
+}
+
+/* ==================== 图标动画 ==================== */
+@keyframes icon-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes icon-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes icon-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(-25%);
+  }
+  50% {
+    transform: translateY(0);
+  }
+  75% {
+    transform: translateY(-10%);
+  }
+}
+
+.icon-spin {
+  animation: icon-spin 1s linear infinite;
+}
+
+.icon-pulse {
+  animation: icon-pulse 1.5s ease-in-out infinite;
+}
+
+.icon-bounce {
+  animation: icon-bounce 1s ease-in-out infinite;
+}
+
+/* 支持 prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .icon-spin,
+  .icon-pulse,
+  .icon-bounce {
+    animation: none;
+  }
+}
+
+/* ==================== 图标尺寸工具类 ==================== */
+.icon-xs { width: var(--icon-xs); height: var(--icon-xs); }
+.icon-sm { width: var(--icon-sm); height: var(--icon-sm); }
+.icon-md { width: var(--icon-md); height: var(--icon-md); }
+.icon-lg { width: var(--icon-lg); height: var(--icon-lg); }
+.icon-xl { width: var(--icon-xl); height: var(--icon-xl); }
+
+/* ==================== 图标颜色工具类 ==================== */
+.icon-color-primary   { color: var(--icon-primary); }
+.icon-color-secondary { color: var(--icon-secondary); }
+.icon-color-muted     { color: var(--icon-muted); }
+.icon-color-success   { color: var(--icon-success); }
+.icon-color-error     { color: var(--icon-error); }
+
+/* ==================== 图标按钮 ==================== */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md, 0.6rem);
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  flex-shrink: 0;
+}
+
+.icon-btn:hover {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.icon-btn:active {
+  transform: scale(0.95);
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.icon-btn:disabled,
+.icon-btn[disabled] {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* 图标按钮尺寸变体 */
+.icon-btn-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm, calc(0.75rem * 0.6));
+}
+
+.icon-btn-sm svg,
+.icon-btn-sm img {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.icon-btn-lg {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg, 0.75rem);
+}
+
+.icon-btn-lg svg,
+.icon-btn-lg img {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
+
+/* 图标按钮变体：primary / ghost / destructive */
+.icon-btn-primary {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.icon-btn-primary:hover {
+  background-color: var(--primary);
+  opacity: 0.9;
+  color: var(--primary-foreground);
+}
+
+.icon-btn-ghost {
+  background: transparent;
+}
+
+.icon-btn-ghost:hover {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.icon-btn-destructive {
+  background: transparent;
+  color: var(--destructive);
+}
+
+.icon-btn-destructive:hover {
+  background-color: var(--destructive);
+  color: var(--primary-foreground);
+}
+
+/* 图标按钮内图标默认尺寸 */
+.icon-btn svg,
+.icon-btn img {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  flex-shrink: 0;
 }
