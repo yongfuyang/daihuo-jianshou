@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">萌萌的</string>
+    <string name="title_activity_main">萌萌的</string>
+    <string name="package_name">com.mengmeng.daihuo</string>
+    <string name="custom_url_scheme">com.mengmeng.daihuo</string>
+</resources>

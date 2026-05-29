@@ -1,19 +1,22 @@
 {
   "appId": "com.mengmeng.daihuo",
   "appName": "萌萌的",
-  "webDir": ".next",
+  "webDir": "public",
+  "bundledWebRuntime": false,
   "server": {
-    "androidScheme": "https"
+    "url": "http://localhost:3000",
+    "cleartext": true
+  },
+  "android": {
+    "buildOptions": {
+      "keystorePath": "signing.properties",
+      "releaseType": "APK"
+    }
   },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 2000,
-      "backgroundColor": "#7c5cfc",
-      "showSpinner": false
-    },
-    "StatusBar": {
-      "style": "dark",
-      "backgroundColor": "#7c5cfc"
+      "backgroundColor": "#1a1a2e"
     }
   }
 }
