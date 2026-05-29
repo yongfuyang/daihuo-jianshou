@@ -27,8 +27,47 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install npm dependencies
+      - name: Install dependencies
         run: npm install --legacy-peer-deps
+
+      - name: Add static export config & generateStaticParams
+        run: |
+          # 1. 添加 output: export 到 next.config.ts
+          node -e "
+          const fs = require('fs');
+          let c = fs.readFileSync('next.config.ts', 'utf8');
+          c = c.replace(
+            'const nextConfig: NextConfig = {',
+            'const nextConfig: NextConfig = {\n  output: \"export\",'
+          );
+          fs.writeFileSync('next.config.ts', c);
+          "
+          
+          # 2. 给所有动态页面添加 generateStaticParams
+          for f in src/app/project/\[id\]/*/page.tsx; do
+            if ! grep -q 'generateStaticParams' "$f"; then
+              sed -i '1s/^/export async function generateStaticParams() { return [{ id: \"demo\" }]; }\n\n/' "$f"
+              echo "✅ 添加 generateStaticParams: $f"
+            fi
+          done
+
+      - name: Build Next.js static export
+        run: npm run build 2>&1
+        continue-on-error: true
+
+      - name: Copy web assets to Capacitor
+        run: |
+          # 检查 out 目录是否存在
+          if [ -d "out" ]; then
+            echo "✅ Next.js 静态导出成功，复制到 Capacitor..."
+            rm -rf android/app/src/main/assets/public/*
+            cp -r out/* android/app/src/main/assets/public/
+            ls -la android/app/src/main/assets/public/ | head -5
+            echo "✅ Web 资源已复制 ($(du -sh android/app/src/main/assets/public/ | cut -f1))"
+          else
+            echo "⚠️ out 目录不存在，Next.js 导出可能失败"
+            echo "使用 placeholder 页面"
+          fi
 
       - name: Create local.properties
         working-directory: android
