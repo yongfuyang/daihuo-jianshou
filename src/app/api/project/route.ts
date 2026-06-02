@@ -23,8 +23,11 @@ export async function GET() {
 // 创建新项目
 export async function POST(req: NextRequest) {
   try {
+    console.log("📦 POST /api/project called");
     const body = await req.json();
+    console.log("📝 Request body:", JSON.stringify(body).substring(0, 500));
     const db = getDb();
+    console.log("✅ Database connected");
 
     const newProject = await db
       .insert(projects)
@@ -37,9 +40,11 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
+    console.log("✅ Project created:", JSON.stringify(newProject));
     return NextResponse.json(newProject[0], { status: 201 });
   } catch (error) {
-    console.error("创建项目失败:", error);
+    console.error("❌ 创建项目失败:", error);
+    console.error("❌ Error stack:", error instanceof Error ? error.stack : "N/A");
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "创建项目失败" },
       { status: 500 }

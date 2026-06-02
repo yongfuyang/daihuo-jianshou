@@ -4,13 +4,26 @@ import path from "path";
 import fs from "fs";
 import * as schema from "./schema";
 
-// 数据库文件路径，放在项目根目录的 data 目录下
+// 数据库文件路径 — Render 上 data/ 目录可能被清空，需要确保可写
 const DB_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DB_DIR, "sqlite.db");
 
-// 确保 data 目录存在
-if (!fs.existsSync(DB_DIR)) {
-  fs.mkdirSync(DB_DIR, { recursive: true });
+// 确保 data 目录存在且可写（Render 每次部署后目录可能被清空）
+try {
+  if (!fs.existsSync(DB_DIR)) {
+    fs.mkdirSync(DB_DIR, { recursive: true });
+  }
+  // 测试目录是否可写
+  const testFile = path.join(DB_DIR, ".write-test");
+  fs.writeFileSync(testFile, "ok");
+  fs.unlinkSync(testFile);
+} catch (e) {
+  console.warn("⚠️ data 目录不可写，尝试使用 /tmp:", e);
+  // Render 上 /tmp 是可写的
+  const tmpDir = "/tmp/daihuo";
+  if (!fs.existsSync(tmpDir)) {
+    fs.mkdirSync(tmpDir, { recursive: true });
+  }
 }
 
 // 创建 better-sqlite3 连接实例

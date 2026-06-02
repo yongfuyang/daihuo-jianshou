@@ -195,7 +195,10 @@ export default function NewProjectPage() {
           productImages: [],
         }),
       });
-      if (!projectRes.ok) throw new Error("项目创建失败，请重试");
+      if (!projectRes.ok) {
+        const errData = await projectRes.json().catch(() => ({}));
+        throw new Error(`项目创建失败 (${projectRes.status}): ${errData.error || projectRes.statusText}`);
+      }
       const project = await projectRes.json();
 
       // 第2步：上传图片（携带 projectId）
