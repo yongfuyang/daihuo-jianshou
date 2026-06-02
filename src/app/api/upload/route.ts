@@ -21,6 +21,8 @@ const ALLOWED_EXTENSIONS = new Set([
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 // 上传商品图片
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -40,8 +42,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "无效的项目ID格式" }, { status: 400 });
   }
 
-  // 创建上传目录
-  const uploadDir = join(process.cwd(), "data", "uploads", projectId);
+  // 创建上传目录 — Render 上 data/ 不可写，用 /tmp
+  const uploadDir = join("/tmp", "daihuo-uploads", projectId);
   await mkdir(uploadDir, { recursive: true });
 
   const savedPaths: string[] = [];
@@ -88,9 +90,8 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("上传失败:", error);
     return NextResponse.json(
-      { error: "上传失败，请稍后重试" },
+      { error: `上传失败，请稍后重试: ${error instanceof Error ? error.message : "未知错误"}` },
       { status: 500 }
     );
   }
 }
-export const dynamic = 'force-static';
