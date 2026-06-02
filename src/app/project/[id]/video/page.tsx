@@ -157,7 +157,7 @@ export default function VideoPage() {
       if (!taskId) throw new Error("未获取到任务ID");
 
       // 2. 轮询查询生成结果
-      let retries = 120;
+      let retries = 300;  // 最多等10分钟
       while (retries > 0) {
         await new Promise((r) => setTimeout(r, 2000));
         const pollRes = await fetch(`${baseUrl}/video/generations/${taskId}`, {
@@ -166,7 +166,8 @@ export default function VideoPage() {
         if (!pollRes.ok) continue;
         const pollData = await pollRes.json();
         const status = pollData.data?.status || pollData.status;
-        setComposeProgress((prev) => Math.min(prev + 5, 95));
+        // 进度平滑递增
+        setComposeProgress((prev) => Math.min(prev + 1, 90));
 
         if (status === "completed" || status === "SUCCESS") {
           const url = pollData.data?.data?.remixed_from_video_id
@@ -184,7 +185,7 @@ export default function VideoPage() {
         }
         retries--;
       }
-      throw new Error("视频生成超时");
+      throw new Error("视频生成超时，请稍后重试");
     } catch (e: any) {
       console.error("视频生成失败:", e);
       setIsComposing(false);
