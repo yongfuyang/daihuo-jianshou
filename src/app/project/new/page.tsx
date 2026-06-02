@@ -232,7 +232,7 @@ export default function NewProjectPage() {
           targetDuration: parseInt(duration),
           styleType: scriptStyle,
           videoMode,
-          productImages: paths,
+          productImages: [],  // 不传大图片base64数据，跳过图片分析
           llmConfig: {
             baseUrl: llm.baseUrl,
             apiKey: llm.apiKey,
