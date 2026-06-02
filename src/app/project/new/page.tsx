@@ -286,18 +286,43 @@ ${platforms.length ? `投放平台: ${platforms.join(",")}` : ""}
       const content = llmData.choices?.[0]?.message?.content;
       if (!content) throw new Error("AI 未返回有效内容");
 
-      // 手动解析 JSON
-      let scripts = [];
-      try {
-        const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*$/g, "").trim();
-        const parsed = JSON.parse(cleaned);
-        scripts = Array.isArray(parsed) ? parsed : [parsed];
-      } catch {
-        // 尝试用正则提取
-        const match = content.match(/\[[\s\S]*\]/);
-        if (match) scripts = JSON.parse(match[0]);
-        else throw new Error("AI 返回格式异常，请重试");
-      }
+      // 适配 LLM 返回格式为页面期望格式
+      // LLM 返回的是 { shots: [...] } 或直接是 shot 数组
+      // 页面需要 { title, totalDuration, shots: [...], styleType }
+      let rawScripts = Array.isArray(parsed) ? parsed : [parsed];
+      let scripts: any[] = rawScripts.map((item: any) => {
+        if (item.shots) {
+          // 已经是完整脚本对象
+          return {
+            title: item.title || "未命名脚本",
+            totalDuration: item.totalDuration || 30,
+            shots: item.shots.map((s: any) => ({
+              shotId: s.shotId || s.id,
+              type: s.type,
+              duration: s.duration || 3,
+              description: s.description || "",
+              camera: s.camera || "",
+              voiceover: s.voiceover || "",
+              visualSource: "ai_generate" as const,
+            })),
+          };
+        } else {
+          // 只是 shots 数组
+          return {
+            title: "脚本",
+            totalDuration: 30,
+            shots: item.map((s: any) => ({
+              shotId: s.shotId || s.id,
+              type: s.type,
+              duration: s.duration || 3,
+              description: s.description || "",
+              camera: s.camera || "",
+              voiceover: s.voiceover || "",
+              visualSource: "ai_generate" as const,
+            })),
+          };
+        }
+      });
 
       // 使用了模板时递增使用次数
 
