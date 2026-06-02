@@ -248,7 +248,7 @@ export default function ScriptPage() {
               <TabsContent value="timeline" className="mt-0">
                 <div className="space-y-3">
                   {currentScript?.shots.map((shot, index) => {
-                    const typeInfo = shotTypeLabels[shot.type];
+                    const typeInfo = shotTypeLabels[shot.type] || { label: "其他", color: "bg-gray-500/20 text-gray-400" };
                     return (
                       <Card key={shot.shotId} className="glass-card overflow-hidden">
                         <CardContent className="p-0">
