@@ -286,6 +286,27 @@ ${platforms.length ? `投放平台: ${platforms.join(",")}` : ""}
       const content = llmData.choices?.[0]?.message?.content;
       if (!content) throw new Error("AI 未返回有效内容");
 
+      // 解析 JSON
+      const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*$/g, "").trim();
+      let parsed: any;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch {
+        // 尝试用正则提取 JSON 数组
+        const match = content.match(/\[[\s\S]*\]/);
+        if (match) {
+          parsed = JSON.parse(match[0]);
+        } else {
+          // 尝试提取 JSON 对象
+          const objMatch = content.match(/\{[\s\S]*\}/);
+          if (objMatch) {
+            parsed = JSON.parse(objMatch[0]);
+          } else {
+            throw new Error("AI 返回格式异常，请重试");
+          }
+        }
+      }
+
       // 适配 LLM 返回格式为页面期望格式
       // LLM 返回的是 { shots: [...] } 或直接是 shot 数组
       // 页面需要 { title, totalDuration, shots: [...], styleType }
