@@ -138,10 +138,6 @@ export default function VideoPage() {
 
     try {
       const baseUrl = (llm.baseUrl || "https://apihub.agnes-ai.com/v1").replace(/\/+$/, "");
-      const fullUrl = baseUrl + '/videos';
-      console.log("[视频] baseUrl:", baseUrl, "apiKey:", llm.apiKey ? llm.apiKey.slice(0, 10) + '...' : '未设置');
-      console.log("[视频] 完整URL:", fullUrl);
-      alert(`调试信息:\n\nbaseUrl: ${baseUrl}\napiKey前10位: ${llm.apiKey ? llm.apiKey.slice(0, 10) + '...' : '未设置'}\n\n完整URL: ${fullUrl}\n\n请截图发送给我`);
       let completedCount = 0;
 
       // 逐个分镜生成
@@ -181,22 +177,44 @@ export default function VideoPage() {
           if (!taskId) throw new Error("未获取到任务ID");
 
           // 轮询等待结果
-          let retries = 120;
+          let retries = 180;
           let videoUrl = "";
+          let lastStatus = "";
 
           while (retries > 0 && !videoUrl) {
-            await new Promise((r) => setTimeout(r, 3000));
+            await new Promise((r) => setTimeout(r, 5000));
+            retries--;
+
             const pollRes = await fetch(`${baseUrl}/videos/${taskId}`, {
               headers: { Authorization: `Bearer ${llm.apiKey}` },
             });
-            if (!pollRes.ok) { retries--; continue; }
+
+            if (!pollRes.ok) { continue; }
 
             const pollData = await pollRes.json();
             const status = pollData.status || "";
+            const progress = pollData.progress || 0;
+
+            // 更新当前分镜进度显示
+            const progressText = status === "completed"
+              ? "完成！"
+              : status === "failed"
+                ? "失败"
+                : `生成中 ${progress}%`;
+
+            setClips((prev) =>
+              prev.map((c) =>
+                c.shotId === clip.shotId
+                  ? { ...c, status: status === "failed" ? "failed" : "generating" as const }
+                  : c
+              )
+            );
+
+            // 显示当前分镜进度
+            setComposeProgress(Math.round((completedCount / clips.length) * 100) + Math.round((progress / clips.length)));
 
             if (status === "completed") {
               videoUrl = pollData.remixed_from_video_id || pollData.video_url || "";
-              // 更新当前分镜的视频 URL
               setClips((prev) =>
                 prev.map((c) =>
                   c.shotId === clip.shotId
@@ -511,7 +529,12 @@ export default function VideoPage() {
                     />
                   </div>
                   <p className="text-xs text-muted-foreground text-center mt-2">
-                    {composeDone ? "合成完成！" : `正在合成视频... ${composeProgress}%`}
+                    {composeDone
+                      ? "合成完成！"
+                      : `正在合成视频... ${composeProgress}%`}
+                  </p>
+                  <p className="text-[10px] text-amber-600 text-center mt-1">
+                    ⏳ 视频生成可能需要 1-3 分钟/分镜，请耐心等待
                   </p>
                 </div>
               )}
