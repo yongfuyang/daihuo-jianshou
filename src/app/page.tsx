@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   LuSettings, LuPlus, LuVideo, LuFilm, LuPackage,
