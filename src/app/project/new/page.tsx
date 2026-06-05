@@ -709,6 +709,7 @@ ${platforms.length ? `投放平台: ${platforms.join(",")}` : ""}
               <Label className="text-sm font-medium mb-3 block">视频模式</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
+                  { value: "auto", label: "AI智能推荐", desc: "根据商品特性自动选择最佳展示模式", icon: LuZap },
                   { value: "product_closeup", label: "产品特写", desc: "商品原图为主，真实感最高", icon: LuBox },
                   { value: "graphic_montage", label: "图文混剪", desc: "快节奏图文卡片，适合快消品", icon: LuLayoutGrid },
                   { value: "scene_demo", label: "场景演示", desc: "AI 生成使用场景，不含人脸", icon: LuEye },
