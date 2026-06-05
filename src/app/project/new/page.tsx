@@ -248,6 +248,7 @@ export default function NewProjectPage() {
 请以JSON格式返回（不要markdown包裹），包含：
 - title: 脚本标题
 - totalDuration: 总时长（秒）
+- styleType: 营销风格名称（AI自由推荐时根据商品特点自创，如"沉浸式开箱+痛点直击"；指定风格时使用对应名称）
 - shots: 分镜数组，每个分镜包含：
   - shotId: 编号
   - type: 类型，只能是以下6个值之一（严格禁止其他值）：
@@ -335,6 +336,7 @@ ${platforms.length ? `投放平台: ${platforms.join(",")}` : ""}
           return {
             title: item.title || "未命名脚本",
             totalDuration: item.totalDuration || 30,
+            styleType: item.styleType || scriptStyle,
             shots: item.shots.map((s: any) => ({
               shotId: s.shotId || s.id,
               type: s.type,
