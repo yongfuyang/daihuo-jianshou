@@ -138,7 +138,8 @@ export default function VideoPage() {
 
     try {
       const videoBaseUrl = (llm.baseUrl || "https://apihub.agnes-ai.com/v1").replace(/\/+$/, "");
-      const queryBaseUrl = llm.baseUrl?.replace(/\/+$/, "") || "https://apihub.agnes-ai.com";
+      // 新接口 /agnesapi 固定使用根 URL，不走 /v1 前缀
+      const queryBaseUrl = "https://apihub.agnes-ai.com";
       let completedCount = 0;
 
       // 逐个分镜生成
