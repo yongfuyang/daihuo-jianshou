@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import {
   LuCheck, LuCircleCheck, LuFilm, LuDownload, LuLink2, LuFileText,
   LuSmartphone, LuCopy, LuShuffle, LuImage, LuImagePlus, LuLoader,
@@ -22,16 +22,16 @@ interface ExportState {
   result: { success: boolean; url?: string; error?: string } | null
 }
 
-// ============ 模拟视频信息 ============
-const videoInfo = {
-  title: "通用品牌 通用商品推广",
-  duration: 25,
-  resolution: "1080p",
-  aspectRatio: "9:16",
-  fileSize: "12.8 MB",
-  format: "MP4",
-  createdAt: "2026-03-23",
-  videoUrl: "https://example.com/videos/product_ad_demo.mp4",
+// ============ 导出状态 ============
+export interface ExportVideoInfo {
+  title: string
+  duration: number
+  resolution: string
+  aspectRatio: string
+  fileSize: string
+  format: string
+  createdAt: string
+  videoUrl: string
 }
 
 // ============ 平台导出配置 ============
@@ -50,11 +50,54 @@ const abVersions = [
 
 export default function ExportPage() {
   const { id } = useParams<{ id: string }>()
+  const searchParams = useSearchParams()
   const [toast, setToast] = useState<string | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isSavingToGallery, setIsSavingToGallery] = useState(false)
   const [exportStates, setExportStates] = useState<Record<string, ExportState>>({})
   const [selectedAB, setSelectedAB] = useState<string>("v1")
+  const [videoInfo, setVideoInfo] = useState<ExportVideoInfo | null>(null)
+
+  // 从 URL query params 或 sessionStorage 获取真实视频信息
+  useEffect(() => {
+    // 优先从 URL query 获取
+    const videoUrlFromUrl = searchParams.get('videoUrl')
+    if (videoUrlFromUrl) {
+      setVideoInfo({
+        title: `项目 ${id} 带货视频`,
+        duration: 25,
+        resolution: "1080p",
+        aspectRatio: "9:16",
+        fileSize: "12.8 MB",
+        format: "MP4",
+        createdAt: new Date().toISOString().split('T')[0],
+        videoUrl: videoUrlFromUrl,
+      })
+      return
+    }
+
+    // 尝试从 sessionStorage 获取
+    try {
+      const stored = sessionStorage.getItem(`export_video_${id}`)
+      if (stored) {
+        const parsed = JSON.parse(stored) as ExportVideoInfo
+        setVideoInfo(parsed)
+        return
+      }
+    } catch {}
+
+    // 兜底：使用默认信息（但没有真实视频 URL）
+    setVideoInfo({
+      title: `项目 ${id} 带货视频`,
+      duration: 25,
+      resolution: "1080p",
+      aspectRatio: "9:16",
+      fileSize: "12.8 MB",
+      format: "MP4",
+      createdAt: new Date().toISOString().split('T')[0],
+      videoUrl: "",
+    })
+  }, [id, searchParams])
 
   // Toast 提示
   const showToast = useCallback((message: string) => {
@@ -64,10 +107,14 @@ export default function ExportPage() {
 
   // ========== 功能2: 下载视频到本地 ==========
   const handleDownload = useCallback(async () => {
+    if (!videoInfo?.videoUrl) {
+      showToast("❌ 暂无可下载的视频")
+      return
+    }
     setIsDownloading(true)
     try {
-      const result = await downloadVideo(videoInfo.videoUrl, {
-        fileName: `${videoInfo.title}_${Date.now()}.mp4`,
+      const result = await downloadVideo(videoInfo?.videoUrl, {
+        fileName: `${videoInfo?.title ?? "项目视频"}_${Date.now()}.mp4`,
       })
       if (result.success) {
         showToast("✅ 视频已开始下载")
@@ -79,13 +126,17 @@ export default function ExportPage() {
     } finally {
       setIsDownloading(false)
     }
-  }, [showToast])
+  }, [showToast, videoInfo])
 
   // ========== 功能2: 保存到相册 ==========
   const handleSaveToGallery = useCallback(async () => {
+    if (!videoInfo?.videoUrl) {
+      showToast("❌ 暂无可保存的视频")
+      return
+    }
     setIsSavingToGallery(true)
     try {
-      const result = await saveToGallery(videoInfo.videoUrl, `${videoInfo.title}_${Date.now()}.mp4`)
+      const result = await saveToGallery(videoInfo?.videoUrl, `${videoInfo?.title ?? "项目视频"}_${Date.now()}.mp4`)
       if (result.success) {
         showToast("✅ 已保存到相册")
       } else if (result.error !== "用户取消保存") {
@@ -96,17 +147,25 @@ export default function ExportPage() {
     } finally {
       setIsSavingToGallery(false)
     }
-  }, [showToast])
+  }, [showToast, videoInfo])
 
   // ========== 分享视频 ==========
   const handleShare = useCallback(async () => {
-    const ok = await shareVideo(videoInfo.videoUrl, videoInfo.title)
+    if (!videoInfo?.videoUrl) {
+      showToast("❌ 暂无可分享的视频")
+      return
+    }
+    const ok = await shareVideo(videoInfo?.videoUrl, videoInfo?.title ?? "带货视频")
     if (ok) showToast("✅ 分享成功")
     else showToast("📋 已复制链接到剪贴板")
-  }, [showToast])
+  }, [showToast, videoInfo])
 
   // ========== 功能7: 导出到平台 ==========
   const handleExportToPlatform = useCallback(async (platformId: PlatformId) => {
+    if (!videoInfo?.videoUrl) {
+      showToast("❌ 暂无可导出的视频")
+      return
+    }
     setExportStates((prev) => ({
       ...prev,
       [platformId]: { platform: platformId, isExporting: true, progress: 0, result: null },
@@ -129,10 +188,10 @@ export default function ExportPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          videoUrl: videoInfo.videoUrl,
+          videoUrl: videoInfo?.videoUrl ?? "",
           platform: platformId,
-          title: videoInfo.title,
-          description: `${videoInfo.title} - 由萌萌的AI生成`,
+          title: videoInfo?.title ?? "带货视频",
+          description: `${videoInfo?.title ?? "项目视频"} - 由萌萌的AI生成`,
           watermark: { text: "萌萌的", position: "bottomRight" },
           subtitle: { enabled: true, style: "bottom" },
         }),
@@ -162,7 +221,7 @@ export default function ExportPage() {
 
   // ========== 复制脚本 ==========
   const handleCopyScript = useCallback(() => {
-    const scriptText = `【${videoInfo.title} - 带货脚本】
+    const scriptText = `【${videoInfo?.title ?? "项目视频"} - 带货脚本】
 
 钩子: "你还在用产品核心卖点？"
 痛点: "普通商品核心痛点..."
@@ -201,7 +260,7 @@ CTA: "限时特价！赶紧去抢！"`
               <span className="text-sm">返回合成</span>
             </Link>
             <span className="text-muted-foreground">/</span>
-            <span className="text-sm text-muted-foreground">{videoInfo.title}</span>
+            <span className="text-sm text-muted-foreground">{videoInfo?.title ?? "项目视频"}</span>
           </div>
           <div className="flex items-center gap-1">
             {["脚本", "素材", "视频", "导出"].map((step, i) => (
@@ -241,7 +300,7 @@ CTA: "限时特价！赶紧去抢！"`
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center">
                     <LuFilm className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                    <p className="text-xs text-muted-foreground/50">{videoInfo.title}</p>
+                    <p className="text-xs text-muted-foreground/50">{videoInfo?.title ?? "项目视频"}</p>
                   </div>
                 </div>
                 <button
@@ -253,21 +312,21 @@ CTA: "限时特价！赶紧去抢！"`
                   </svg>
                 </button>
                 <div className="absolute bottom-3 right-3 px-2 py-0.5 rounded bg-black/60 text-white text-xs">
-                  0:{String(videoInfo.duration).padStart(2, "0")}
+                  0:{String(videoInfo?.duration ?? 25).padStart(2, "0")}
                 </div>
               </div>
             </div>
             <div className="px-5 py-3 border-t border-border/30 flex items-center justify-between">
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span>{videoInfo.resolution}</span>
+                <span>{videoInfo?.resolution ?? "1080p"}</span>
                 <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
-                <span>{videoInfo.aspectRatio}</span>
+                <span>{videoInfo?.aspectRatio ?? "9:16"}</span>
                 <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
-                <span>{videoInfo.fileSize}</span>
+                <span>{videoInfo?.fileSize ?? "12.8 MB"}</span>
                 <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
-                <span>{videoInfo.format}</span>
+                <span>{videoInfo?.format ?? "MP4"}</span>
               </div>
-              <span className="text-xs text-muted-foreground">{videoInfo.createdAt}</span>
+              <span className="text-xs text-muted-foreground">{videoInfo?.createdAt ?? ""}</span>
             </div>
           </CardContent>
         </Card>

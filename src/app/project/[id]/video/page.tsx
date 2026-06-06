@@ -587,7 +587,7 @@ export default function VideoPage() {
               )}
 
               {composeDone && (
-                <Link href={`/project/${id}/export`}>
+                <Link href={`/project/${id}/export?videoUrl=${encodeURIComponent(clips.find(c => c.status === 'done')?.url || '')}`}>
                     <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
                       下一步：导出视频
                       <LuArrowRight className="w-4 h-4 ml-1" />
