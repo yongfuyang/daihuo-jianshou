@@ -623,15 +623,22 @@ export default function VideoPage() {
             <div className="absolute bottom-4 right-4 flex gap-2 z-[101]">
               <button
                 className="px-4 py-2 bg-white/20 backdrop-blur-md rounded-lg text-white text-sm hover:bg-white/30 transition-all"
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation();
-                  const a = document.createElement('a');
-                  a.href = selectedVideoUrl;
-                  a.download = 'video-' + Date.now() + '.mp4';
-                  a.target = '_blank';
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
+                  try {
+                    const res = await fetch(selectedVideoUrl);
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'video-' + Date.now() + '.mp4';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  } catch {
+                    window.open(selectedVideoUrl, '_blank');
+                  }
                 }}
               >
                 💾 下载视频
