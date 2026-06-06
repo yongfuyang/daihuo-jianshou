@@ -56,7 +56,7 @@ function getAssetsFromSessionStorage(id: string): AssetItem[] | null {
       duration: shot.duration || 3,
       description: shot.description || `分镜 ${index + 1}`,
       prompt: shot.prompt || shot.description || "",
-      visualSource: "ai_generate" as const,
+      visualSource: (shot.visualSource as AssetItem["visualSource"]) || "ai_generate",
       status: "pending" as const,
     }));
   } catch {
@@ -164,6 +164,13 @@ export default function AssetsPage() {
       );
     }
   }, [assets, llm]);
+
+  // 将资产信息保存到sessionStorage，供video页面读取
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(`assets_${id}`, JSON.stringify(assets));
+    } catch {}
+  }, [assets, id]);
 
   // 一键全部生成
   const generateAll = useCallback(() => {

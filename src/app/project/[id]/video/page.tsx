@@ -182,6 +182,13 @@ export default function VideoPage() {
     setIsComposing(true);
     setComposeProgress(0);
 
+    // 读取商品图
+    let productImage = "";
+    try {
+      const stored = sessionStorage.getItem(`productImage_${id}`);
+      if (stored) productImage = stored;
+    } catch {}
+
     try {
       const videoBaseUrl = (llm.baseUrl || "https://apihub.agnes-ai.com/v1").replace(/\/+$/, "");
       // 新接口 /agnesapi 固定使用根 URL，不走 /v1 前缀
@@ -202,18 +209,23 @@ export default function VideoPage() {
 
         try {
           // 提交视频任务
+          const videoBody: any = {
+            model: "agnes-video-v2.0",
+            prompt: clipPrompt,
+            num_frames: 121,
+            frame_rate: 24,
+          };
+          // 如果有商品图，传递 firstFrameUrl 让 Agnes 用商品图生成视频
+          if (productImage) {
+            videoBody.firstFrameUrl = productImage;
+          }
           const submitRes = await fetch(`${videoBaseUrl}/videos`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${llm.apiKey}`,
             },
-            body: JSON.stringify({
-              model: "agnes-video-v2.0",
-              prompt: clipPrompt,
-              num_frames: 121,
-              frame_rate: 24,
-            }),
+            body: JSON.stringify(videoBody),
           });
 
           if (!submitRes.ok) {
