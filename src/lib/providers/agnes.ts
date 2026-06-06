@@ -155,14 +155,28 @@ export class AgnesProvider extends BaseProvider {
   }
 
   /**
-   * 查询视频任务状态 — 新版 API 优先使用 video_id
+   * 查询视频任务状态 — 新版 API 使用 video_id
+   * GET https://apihub.agnes-ai.com/agnesapi?video_id={video_id}
    */
   async getTaskStatus(taskId: string): Promise<TaskStatus> {
-    const res = await this.request<AgnesVideoStatusResponse>(`/v1/videos/${taskId}`)
+    const baseUrl = 'https://apihub.agnes-ai.com'
+    const res = await fetch(`${baseUrl}/agnesapi?video_id=${taskId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(30000),
+    })
 
-    const rawStatus = res.status || 'unknown'
+    if (!res.ok) {
+      throw new ProviderError(`查询失败: ${res.statusText}`, 'API_ERROR', this.name)
+    }
+
+    const data = await res.json() as AgnesVideoStatusResponse
+    const rawStatus = data.status || 'unknown'
+
     let mappedStatus: TaskStatusEnum
-
     switch (rawStatus) {
       case 'completed':
         mappedStatus = 'completed'
@@ -183,66 +197,46 @@ export class AgnesProvider extends BaseProvider {
     return {
       taskId,
       status: mappedStatus,
-      progress: res.progress || 0,
-      error: res.error || undefined,
-      rawData: res,
+      progress: data.progress || 0,
+      error: data.error || undefined,
+      rawData: data,
     }
   }
 
   /**
-   * 轮询视频状态 — 新版 API 优先使用 video_id
+   * 轮询视频状态 — 新版 API 使用 video_id 查询，不走 /v1 前缀
+   * GET https://apihub.agnes-ai.com/agnesapi?video_id={video_id}
    */
   private async pollVideoStatus(
     videoId: string,
     opts: { interval: number; maxAttempts: number; isTerminal: (status: string) => boolean },
   ): Promise<{ status: string; rawData: unknown }> {
+    const queryBaseUrl = 'https://apihub.agnes-ai.com'
     for (let i = 0; i < opts.maxAttempts; i++) {
       await new Promise((r) => setTimeout(r, opts.interval))
-      // NEW: Use video_id query endpoint (no queuing)
-      const res = await this.request<AgnesVideoStatusResponse>(
-        `/agnesapi?video_id=${videoId}`,
-      )
-      if (opts.isTerminal(res.status)) {
-        return { status: res.status, rawData: res }
+      const res = await fetch(`${queryBaseUrl}/agnesapi?video_id=${videoId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(30000),
+      })
+
+      if (!res.ok) {
+        const errText = await res.text()
+        throw new ProviderError(`查询视频状态失败 (${res.status}): ${errText}`, 'API_ERROR', this.name)
+      }
+
+      const data = await res.json() as AgnesVideoStatusResponse
+      if (opts.isTerminal(data.status)) {
+        return { status: data.status, rawData: data }
       }
     }
     return { status: 'timeout', rawData: null }
   }
 
-  /**
-   * 查询视频任务状态
-   */
-  async getTaskStatus(taskId: string): Promise<TaskStatus> {
-    const res = await this.request<AgnesVideoStatusResponse>(`/v1/videos/${taskId}`)
 
-    const rawStatus = res.status || 'unknown'
-    let mappedStatus: TaskStatusEnum
-
-    switch (rawStatus) {
-      case 'completed':
-        mappedStatus = 'completed'
-        break
-      case 'failed':
-        mappedStatus = 'failed'
-        break
-      case 'queued':
-        mappedStatus = 'pending'
-        break
-      case 'in_progress':
-        mappedStatus = 'processing'
-        break
-      default:
-        mappedStatus = 'pending'
-    }
-
-    return {
-      taskId,
-      status: mappedStatus,
-      progress: res.progress || 0,
-      error: res.error || undefined,
-      rawData: res,
-    }
-  }
 
   /**
    * 列出可用模型

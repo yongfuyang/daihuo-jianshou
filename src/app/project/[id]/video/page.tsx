@@ -137,7 +137,8 @@ export default function VideoPage() {
     setComposeProgress(0);
 
     try {
-      const baseUrl = (llm.baseUrl || "https://apihub.agnes-ai.com/v1").replace(/\/+$/, "");
+      const videoBaseUrl = (llm.baseUrl || "https://apihub.agnes-ai.com/v1").replace(/\/+$/, "");
+      const queryBaseUrl = llm.baseUrl?.replace(/\/+$/, "") || "https://apihub.agnes-ai.com";
       let completedCount = 0;
 
       // 逐个分镜生成
@@ -154,7 +155,7 @@ export default function VideoPage() {
 
         try {
           // 提交视频任务
-          const submitRes = await fetch(`${baseUrl}/videos`, {
+          const submitRes = await fetch(`${videoBaseUrl}/videos`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -176,7 +177,8 @@ export default function VideoPage() {
           const taskId = submitData.task_id || submitData.id;
           if (!taskId) throw new Error("未获取到任务ID");
 
-          // 轮询等待结果
+          // 轮询等待结果 — 使用新 API 接口 /agnesapi?video_id=xxx
+          const video_id = submitData.video_id || taskId;
           let retries = 180;
           let videoUrl = "";
           let lastStatus = "";
@@ -185,11 +187,16 @@ export default function VideoPage() {
             await new Promise((r) => setTimeout(r, 5000));
             retries--;
 
-            const pollRes = await fetch(`${baseUrl}/videos/${taskId}`, {
+            // 新接口：不走 /v1 前缀，直接查询
+            const pollUrl = `${queryBaseUrl}/agnesapi?video_id=${encodeURIComponent(video_id)}`;
+            const pollRes = await fetch(pollUrl, {
               headers: { Authorization: `Bearer ${llm.apiKey}` },
             });
 
-            if (!pollRes.ok) { continue; }
+            if (!pollRes.ok) {
+              console.warn("轮询失败", pollRes.status);
+              continue;
+            }
 
             const pollData = await pollRes.json();
             const status = pollData.status || "";
@@ -227,7 +234,6 @@ export default function VideoPage() {
             } else if (status === "failed") {
               throw new Error(pollData.error || "视频生成失败");
             }
-            retries--;
           }
 
           if (!videoUrl) {
