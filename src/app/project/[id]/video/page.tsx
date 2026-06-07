@@ -346,7 +346,7 @@ export default function VideoPage() {
           }
         } catch (e: any) {
           // 单个分镜失败，标记失败但不中断整体流程
-          const errMsg = e?.message || "生成失败";
+          const errMsg = e instanceof Error ? e.message : (typeof e === 'object' ? JSON.stringify(e) : String(e));
           console.error(`分镜 ${i + 1} 生成失败:`, e);
           setComposeError(`分镜 ${i + 1} (${clip.voiceover?.slice(0, 20) || ''}...) 生成失败: ${errMsg}`);
           alert(`分镜 ${i + 1} 生成失败: ${errMsg}`);
