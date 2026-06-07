@@ -526,7 +526,21 @@ export default function StoryboardPage() {
       prev.map((s) => (s.shotId === updated.shotId ? updated : s))
     );
     setEditingShot(null);
+    saveEditedShots();
   }, []);
+
+  // ===== 保存编辑到sessionStorage =====
+  const saveEditedShots = useCallback(() => {
+    try {
+      const firstScript = scripts.find(s => s.id === currentScript?.id);
+      if (firstScript) {
+        const updatedScript = { ...firstScript, shots };
+        sessionStorage.setItem(`scripts_${id}`, JSON.stringify([updatedScript]));
+      }
+    } catch {}
+    setShowSaved(true);
+    setTimeout(() => setShowSaved(false), 2000);
+  }, [shots, id, scripts, currentScript]);
 
   const handleDelete = useCallback((shotId: number) => {
     setShots((prev) => {
@@ -569,10 +583,13 @@ export default function StoryboardPage() {
   }, []);
 
   const handleSaveAll = useCallback(() => {
-    // TODO: 后续对接 API 保存
+    try {
+      sessionStorage.setItem(`scripts_${id}`, JSON.stringify([{ shots } as any]));
+      sessionStorage.setItem(`storyboard_${id}`, JSON.stringify(shots));
+    } catch {}
     setShowSaved(true);
     setTimeout(() => setShowSaved(false), 2000);
-  }, []);
+  }, [shots, id]);
 
   // 统计
   const totalDuration = shots.reduce((sum, s) => sum + s.duration, 0);
