@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   LuSettings, LuPlus, LuVideo, LuFilm, LuPackage,
@@ -23,9 +23,12 @@ import type { ProjectStatus, SortField, SortOrder } from "@/lib/stores/project-s
 const statusMap: Record<string, { label: string; color: string }> = {
   draft: { label: "草稿", color: "bg-zinc-500/20 text-zinc-400" },
   script: { label: "脚本中", color: "bg-blue-500/20 text-blue-400" },
+  scripting: { label: "脚本中", color: "bg-blue-500/20 text-blue-400" },
   storyboard: { label: "分镜中", color: "bg-purple-500/20 text-purple-400" },
   generating: { label: "生成中", color: "bg-cyan-500/20 text-cyan-400" },
+  assets: { label: "素材中", color: "bg-cyan-500/20 text-cyan-400" },
   video: { label: "合成中", color: "bg-amber-500/20 text-amber-400" },
+  composing: { label: "合成中", color: "bg-amber-500/20 text-amber-400" },
   done: { label: "已完成", color: "bg-emerald-500/20 text-emerald-400" },
   failed: { label: "失败", color: "bg-red-500/20 text-red-400" },
 };
@@ -66,14 +69,38 @@ function formatRelativeTime(date: Date | string): string {
 }
 
 export default function HomePage() {
+  const [isLoading, setIsLoading] = useState(true);
   const {
-    projects, removeProject,
+    projects, removeProject, setProjects,
     searchQuery, filterStatus, sortOption,
     setSearchQuery, setFilterStatus, setSortOption,
   } = useProjectStore();
   const { llm, providers } = useSettingsStore();
 
   const { confirm, ConfirmDialog } = useConfirm();
+
+  // 从 API 加载项目列表
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/project");
+        if (res.ok) {
+          const data = await res.json();
+          // 将日期字符串转回 Date 对象
+          const parsed = data.map((p: any) => ({
+            ...p,
+            createdAt: new Date(p.createdAt),
+            updatedAt: new Date(p.updatedAt),
+          }));
+          setProjects(parsed);
+        }
+      } catch (err) {
+        console.error("加载项目失败:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, [setProjects]);
 
   // 筛选后的项目列表（利用 store 的筛选/排序逻辑）
   const filteredProjects = useMemo(() => {
@@ -92,9 +119,9 @@ export default function HomePage() {
     // 状态过滤
     if (filterStatus !== "all") {
       if (filterStatus === "script") {
-        // "生成中" 分组包含 script / storyboard / generating / video
+        // "生成中" 分组包含所有进行中状态（store 和 DB 均覆盖）
         list = list.filter(p =>
-          ["script", "storyboard", "generating", "video"].includes(p.status)
+          ["script", "storyboard", "generating", "video", "scripting", "assets", "composing"].includes(p.status)
         );
       } else {
         list = list.filter(p => p.status === filterStatus);
@@ -144,6 +171,11 @@ export default function HomePage() {
         variant: "destructive",
       });
       if (ok) {
+        try {
+          await fetch(`/api/project/${projectId}`, { method: "DELETE" });
+        } catch (err) {
+          console.error("删除项目失败:", err);
+        }
         removeProject(projectId);
       }
     },
@@ -359,6 +391,18 @@ export default function HomePage() {
 
         {/* 项目列表区域 */}
         <div>
+          {/* 加载中状态 */}
+          {isLoading && (
+            <Card className="glass-card">
+              <CardContent className="p-10 text-center">
+                <LuLoader className="w-8 h-8 mx-auto mb-3 text-muted-foreground animate-spin" />
+                <p className="text-sm text-muted-foreground">加载项目中...</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {!isLoading && (
+          <>
           {/* 标题 + 搜索 + 筛选工具栏 */}
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">全部项目</h2>
@@ -583,6 +627,8 @@ export default function HomePage() {
                 ? `，当前显示 ${filteredProjects.length} 个`
                 : ""}
             </p>
+          )}
+          </>
           )}
         </div>
       </main>

@@ -21,7 +21,7 @@ async function imagePathToBase64(imagePath: string): Promise<string> {
   if (!match) return imagePath;
 
   const relativePath = match[1];
-  const filePath = join("/tmp", "daihuo-uploads", relativePath);
+  const filePath = join(process.cwd(), "data", "uploads", relativePath);
 
   try {
     const buffer = await readFile(filePath);

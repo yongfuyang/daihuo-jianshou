@@ -1,80 +1,35 @@
-// 纯内存数据库 — 无原生依赖，Render 100% 兼容
-// 数据存储在内存中，部署后重启会清空（但功能完全正常）
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
+import * as schema from "./schema";
 
-export interface Project {
-  id: string;
-  name: string;
-  status: string;
-  product_name?: string;
-  product_category?: string;
-  product_description?: string;
-  product_images?: string[];
-  product_analysis?: string;
-  product_id?: string;
-  brand_id?: string;
-  template_id?: string;
-  video_mode?: string;
-  source_type?: string;
-  source_video_url?: string;
-  character_id?: string;
-  created_at: number;
-  updated_at: number;
+// 全局单例：防止 Next.js 热重载时重复创建连接池
+const globalForDb = globalThis as unknown as { _mysqlPool?: mysql.Pool };
+
+// MySQL 连接池配置，从环境变量读取，fallback 到本地开发默认值
+if (!globalForDb._mysqlPool) {
+  globalForDb._mysqlPool = mysql.createPool({
+    host: process.env.DB_HOST || "127.0.0.1",
+    port: Number(process.env.DB_PORT) || 3306,
+    user: process.env.DB_USER || "root",
+    password: process.env.DB_PASSWORD || "123456",
+    database: process.env.DB_NAME || "daihuo_jianshou",
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+    // 性能优化
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+    connectTimeout: 5000,
+    // 连接空闲回收，避免走 TCP 重连
+    idleTimeout: 30000,
+  });
 }
+const pool = globalForDb._mysqlPool;
 
-// 内存存储
-const projects: Map<string, Project> = new Map();
-const scripts: Map<string, any> = new Map();
-const assets: Map<string, any> = new Map();
-const videoClips: Map<string, any> = new Map();
-const compositions: Map<string, any> = new Map();
-const products: Map<string, any> = new Map();
-const brandSettings: Map<string, any> = new Map();
-const scriptTemplates: Map<string, any> = new Map();
-const characters: Map<string, any> = new Map();
-const analyticsEvents: Map<string, any> = new Map();
-const settings: Map<string, string> = new Map();
+// 创建 Drizzle ORM 实例，绑定 schema
+export const db = drizzle(pool, { schema, mode: "default" });
 
+// 兼容函数式调用
 export function getDb() {
-  return {
-    // 查询
-    select: () => ({
-      from: (tableName: string) => ({
-        orderBy: (_field: any) => Promise.resolve(Array.from(tableName === 'projects' ? projects.values() : [])),
-        where: (_condition: any) => Promise.resolve(Array.from(tableName === 'projects' ? projects.values() : [])),
-      }),
-    }),
-
-    // 插入
-    insert: (tableName: string) => ({
-      values: (data: any) => ({
-        returning: () => {
-          if (tableName === 'projects') {
-            const project: Project = {
-              ...data,
-              id: data.id || crypto.randomUUID(),
-              created_at: Date.now(),
-              updated_at: Date.now(),
-            } as Project;
-            projects.set(project.id, project);
-            return Promise.resolve([project]);
-          }
-          return Promise.resolve([{ id: 'dummy' }]);
-        },
-      }),
-    }),
-
-    // 更新
-    update: (tableName: string) => ({
-      set: (data: any) => ({
-        where: (_condition: any) => Promise.resolve({ affected: 1 }),
-      }),
-    }),
-
-    // 删除
-    delete: () => ({
-      from: () => ({
-        where: (_condition: any) => Promise.resolve({ affected: 0 }),
-      }),
-    }),
-  };
+  return db;
 }

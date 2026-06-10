@@ -42,6 +42,25 @@ interface ComposeConfig {
   resolution: "720p" | "1080p";
 }
 
+// 项目数据类型（从 API 返回）
+interface ProjectData {
+  id: string;
+  name: string;
+  productName: string;
+  productImages: string[];
+}
+
+// 脚本数据类型（从 API 返回）
+interface ScriptData {
+  id: string;
+  projectId: string;
+  styleType: string;
+  title: string;
+  totalDuration: number;
+  shots: Shot[];
+  selected: boolean;
+}
+
 // 转场标签
 const transitionLabels: Record<string, string> = {
   ai_start_end: "AI 智能过渡",
@@ -60,53 +79,12 @@ const shotTypeLabels: Record<Shot["type"], { label: string; color: string }> = {
   cta: { label: "转化", color: "bg-amber-500/20 text-amber-400" },
 };
 
-// 备用视频片段数据
-const fallbackClips: VideoClipItem[] = [
-  { shotId: 1, type: "hook", duration: 3, voiceover: "吸引眼球的开场", transition: "ai_start_end" },
-  { shotId: 2, type: "pain_point", duration: 4, voiceover: "痛点描述", transition: "ai_start_end" },
-  { shotId: 3, type: "product_reveal", duration: 3, voiceover: "产品展示", transition: "ai_start_end" },
-  { shotId: 4, type: "demo", duration: 5, voiceover: "使用演示", transition: "ai_start_end" },
-  { shotId: 5, type: "cta", duration: 3, voiceover: "引导下单", transition: "direct_concat" },
-];
-
-// 从 sessionStorage 读取脚本数据并转换为 VideoClipItem 数组
-function getClipsFromSessionStorage(id: string): VideoClipItem[] | null {
-  try {
-    if (typeof window === "undefined") return null;
-    const stored = sessionStorage.getItem(`scripts_${id}`);
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    let shots: any[] = [];
-    if (Array.isArray(parsed)) {
-      const first = parsed[0];
-      if (first.shots) shots = first.shots;
-      else shots = parsed;
-    } else if (parsed.shots) {
-      shots = parsed.shots;
-    }
-    if (!shots.length) return null;
-    return shots.map((shot: any, index: number) => ({
-      shotId: shot.shotId || index + 1,
-      type: (shot.type as VideoClipItem["type"]) || "hook",
-      duration: shot.duration || 3,
-      voiceover: shot.voiceover || "",
-      description: shot.description || "",
-      camera: shot.camera || "",
-      prompt: shot.prompt || "",
-      transition: "ai_start_end" as const,
-      status: "pending" as const,
-    }));
-  } catch {
-    return null;
-  }
-}
-
 export default function VideoPage() {
   const { id } = useParams<{ id: string }>();
-  const [clips, setClips] = useState<VideoClipItem[]>(() => {
-    const stored = getClipsFromSessionStorage(id);
-    return stored || fallbackClips;
-  });
+  const [clips, setClips] = useState<VideoClipItem[]>([]);
+  const [project, setProject] = useState<ProjectData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [config, setConfig] = useState<ComposeConfig>({
     ttsEnabled: true,
     ttsVoice: "female-gentle",
@@ -124,6 +102,49 @@ export default function VideoPage() {
   const [composeError, setComposeError] = useState<string | null>(null);
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
   const llm = useSettingsStore((s) => s.llm);
+
+  // 从 API 加载项目和脚本数据
+  useEffect(() => {
+    if (!id) return;
+    const fetchData = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const [projectRes, scriptsRes] = await Promise.all([
+          fetch(`/api/project/${id}`),
+          fetch(`/api/scripts?projectId=${id}`),
+        ]);
+
+        if (!projectRes.ok) throw new Error(`加载项目失败 (${projectRes.status})`);
+        const projectData = await projectRes.json();
+        setProject(projectData);
+
+        if (scriptsRes.ok) {
+          const scriptsData: ScriptData[] = await scriptsRes.json();
+          if (Array.isArray(scriptsData) && scriptsData.length > 0) {
+            const selectedScript = scriptsData.find(s => s.selected) || scriptsData[0];
+            const clipItems: VideoClipItem[] = selectedScript.shots.map((shot, index) => ({
+              shotId: shot.shotId || index + 1,
+              type: shot.type,
+              duration: shot.duration || 3,
+              voiceover: shot.voiceover || "",
+              description: shot.description || "",
+              camera: shot.camera || "",
+              transition: shot.transition || "ai_start_end" as const,
+              status: "pending" as const,
+            }));
+            setClips(clipItems);
+          }
+        }
+      } catch (e) {
+        console.error("加载数据失败:", e);
+        setLoadError(e instanceof Error ? e.message : "加载数据失败");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [id]);
 
   const totalDuration = clips.reduce((sum, c) => sum + c.duration, 0);
 
@@ -187,12 +208,8 @@ export default function VideoPage() {
     setIsComposing(true);
     setComposeProgress(0);
 
-    // 读取商品图
-    let productImage = "";
-    try {
-      const stored = sessionStorage.getItem(`productImage_${id}`);
-      if (stored) productImage = stored;
-    } catch {}
+    // 读取商品图（从项目数据中获取）
+    const productImage = project?.productImages?.[0] || "";
 
     // 翻译prompt为英文，并统一为写实风格
     const translatePrompt = async (chinese: string): Promise<string> => {
@@ -240,7 +257,7 @@ export default function VideoPage() {
           clip.camera,
           clip.voiceover,
         ].filter(Boolean).join("，");
-        
+
         // 翻译成英文让视频模型生成效果更好
         const clipPrompt = chinesePrompt ? await translatePrompt(chinesePrompt) : chinesePrompt;
 
@@ -360,6 +377,44 @@ export default function VideoPage() {
         }
       }
 
+      // 全部分镜生成完毕后，调用服务端合成 API
+      try {
+        const composeRes = await fetch("/api/compose", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: id,
+            clips: clips.map(c => ({
+              shotId: c.shotId,
+              url: c.url,
+              duration: c.duration,
+              transition: c.transition,
+            })),
+            output: {
+              resolution: config.resolution,
+              aspectRatio: config.aspectRatio,
+              bgmPath: config.bgm !== "none" ? config.bgm : undefined,
+            },
+            subtitle: {
+              enabled: true,
+              position: config.subtitlePosition,
+              fontSize: config.subtitleSize,
+            },
+            tts: {
+              enabled: config.ttsEnabled,
+              voice: config.ttsVoice,
+            },
+          }),
+        });
+
+        if (!composeRes.ok) {
+          const errData = await composeRes.json().catch(() => ({}));
+          console.warn("服务端合成返回错误:", errData);
+        }
+      } catch (composeErr) {
+        console.warn("服务端合成请求失败:", composeErr);
+      }
+
       // 全部完成
       setComposeProgress(100);
       setIsComposing(false);
@@ -411,6 +466,19 @@ export default function VideoPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-8">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <LuLoader className="w-8 h-8 animate-spin text-muted-foreground" />
+            <span className="ml-3 text-muted-foreground">加载视频数据...</span>
+          </div>
+        ) : loadError ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <p className="text-destructive mb-2">{loadError}</p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              重新加载
+            </Button>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 左侧：视频时间线 */}
           <div className="lg:col-span-2">
@@ -730,6 +798,7 @@ export default function VideoPage() {
             </div>
           </div>
         </div>
+        )}
       </main>
 
       {/* 视频弹窗 */}

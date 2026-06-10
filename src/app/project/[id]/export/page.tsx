@@ -34,6 +34,40 @@ export interface ExportVideoInfo {
   videoUrl: string
 }
 
+// ============ API 数据类型 ============
+interface ProjectData {
+  id: string
+  name: string
+  productName: string
+}
+
+interface CompositionData {
+  id: string
+  projectId: string
+  outputPath: string
+  resolution: string
+  aspectRatio: string
+  duration: number
+  status: string
+  createdAt: string
+}
+
+interface ScriptData {
+  id: string
+  projectId: string
+  styleType: string
+  title: string
+  totalDuration: number
+  shots: Array<{
+    shotId: number
+    type: string
+    duration: number
+    voiceover: string
+    description: string
+  }>
+  selected: boolean
+}
+
 // ============ 平台导出配置 ============
 const platformConfigs = [
   { id: "douyin" as PlatformId, name: "抖音", ratio: "9:16", resolution: "1080p", subtitle: "居中+描边", color: "from-pink-500 to-red-500" },
@@ -59,46 +93,112 @@ export default function ExportPage() {
   const [exportStates, setExportStates] = useState<Record<string, ExportState>>({})
   const [selectedAB, setSelectedAB] = useState<string>("v1")
   const [videoInfo, setVideoInfo] = useState<ExportVideoInfo | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [scriptText, setScriptText] = useState<string>("")
 
-  // 从 URL query params 或 sessionStorage 获取真实视频信息
+  // 将 composition 的 outputPath 转换为可访问的 URL
+  // outputPath 类似 "data/output/xxx/filename.mp4" -> "/api/files/output/xxx/filename.mp4"
+  const outputPathToUrl = (outputPath: string): string => {
+    if (!outputPath) return ""
+    // 去掉开头的 "data/" 前缀，因为 /api/files 已经映射到 data 目录
+    const relativePath = outputPath.replace(/^data\/+/, "")
+    return `/api/files/${relativePath}`
+  }
+
+  // 从 API 加载项目数据、合成记录和脚本
   useEffect(() => {
-    // 优先从 URL query 获取
-    const videoUrlFromUrl = searchParams.get('videoUrl')
-    if (videoUrlFromUrl) {
-      setVideoInfo({
-        title: `项目 ${id} 带货视频`,
-        duration: 25,
-        resolution: "1080p",
-        aspectRatio: "9:16",
-        fileSize: "12.8 MB",
-        format: "MP4",
-        createdAt: new Date().toISOString().split('T')[0],
-        videoUrl: videoUrlFromUrl,
-      })
-      return
-    }
+    if (!id) return
+    const fetchData = async () => {
+      setIsLoading(true)
+      setLoadError(null)
+      try {
+        // 优先从 URL query 获取视频 URL（从视频页面跳转而来）
+        const videoUrlFromUrl = searchParams.get('videoUrl')
+        if (videoUrlFromUrl) {
+          setVideoInfo({
+            title: `项目 ${id} 带货视频`,
+            duration: 25,
+            resolution: "1080p",
+            aspectRatio: "9:16",
+            fileSize: "12.8 MB",
+            format: "MP4",
+            createdAt: new Date().toISOString().split('T')[0],
+            videoUrl: videoUrlFromUrl,
+          })
+          // 仍然加载脚本用于复制脚本功能
+          try {
+            const scriptsRes = await fetch(`/api/scripts?projectId=${id}`)
+            if (scriptsRes.ok) {
+              const scriptsData: ScriptData[] = await scriptsRes.json()
+              if (Array.isArray(scriptsData) && scriptsData.length > 0) {
+                const selected = scriptsData.find(s => s.selected) || scriptsData[0]
+                const text = selected.shots.map(s => s.voiceover).filter(Boolean).join("\n")
+                setScriptText(text)
+              }
+            }
+          } catch {}
+          setIsLoading(false)
+          return
+        }
 
-    // 尝试从 sessionStorage 获取
-    try {
-      const stored = sessionStorage.getItem(`export_video_${id}`)
-      if (stored) {
-        const parsed = JSON.parse(stored) as ExportVideoInfo
-        setVideoInfo(parsed)
-        return
+        // 并行加载项目、合成记录和脚本
+        const [projectRes, compositionRes, scriptsRes] = await Promise.all([
+          fetch(`/api/project/${id}`),
+          fetch(`/api/compositions?projectId=${id}`),
+          fetch(`/api/scripts?projectId=${id}`),
+        ])
+
+        if (!projectRes.ok) throw new Error(`加载项目失败 (${projectRes.status})`)
+        const projectData: ProjectData = await projectRes.json()
+
+        let videoUrl = ""
+        let duration = 25
+        let resolution = "1080p"
+        let aspectRatio = "9:16"
+        let createdAt = new Date().toISOString().split('T')[0]
+
+        // 从合成记录获取视频信息
+        if (compositionRes.ok) {
+          const compData = await compositionRes.json()
+          const composition: CompositionData | null = compData.composition
+          if (composition) {
+            videoUrl = outputPathToUrl(composition.outputPath)
+            duration = Math.round((composition.duration || 0) / 1000) // ms to seconds
+            resolution = composition.resolution || "1080p"
+            aspectRatio = composition.aspectRatio || "9:16"
+            createdAt = composition.createdAt ? new Date(composition.createdAt).toISOString().split('T')[0] : createdAt
+          }
+        }
+
+        setVideoInfo({
+          title: `${projectData.productName || projectData.name || '项目'} 带货视频`,
+          duration,
+          resolution,
+          aspectRatio,
+          fileSize: "12.8 MB",
+          format: "MP4",
+          createdAt,
+          videoUrl,
+        })
+
+        // 从脚本获取配音文案（用于复制脚本功能）
+        if (scriptsRes.ok) {
+          const scriptsData: ScriptData[] = await scriptsRes.json()
+          if (Array.isArray(scriptsData) && scriptsData.length > 0) {
+            const selected = scriptsData.find(s => s.selected) || scriptsData[0]
+            const text = selected.shots.map(s => s.voiceover).filter(Boolean).join("\n")
+            setScriptText(text)
+          }
+        }
+      } catch (e) {
+        console.error("加载导出数据失败:", e)
+        setLoadError(e instanceof Error ? e.message : "加载导出数据失败")
+      } finally {
+        setIsLoading(false)
       }
-    } catch {}
-
-    // 兜底：使用默认信息（但没有真实视频 URL）
-    setVideoInfo({
-      title: `项目 ${id} 带货视频`,
-      duration: 25,
-      resolution: "1080p",
-      aspectRatio: "9:16",
-      fileSize: "12.8 MB",
-      format: "MP4",
-      createdAt: new Date().toISOString().split('T')[0],
-      videoUrl: "",
-    })
+    }
+    fetchData()
   }, [id, searchParams])
 
   // Toast 提示
@@ -223,19 +323,19 @@ export default function ExportPage() {
 
   // ========== 复制脚本 ==========
   const handleCopyScript = useCallback(() => {
-    const scriptText = `【${videoInfo?.title ?? "项目视频"} - 带货脚本】
+    const fullScriptText = scriptText || `【${videoInfo?.title ?? "项目视频"} - 带货脚本】
 
 钩子: "你还在用产品核心卖点？"
 痛点: "普通商品核心痛点..."
 产品: "惊喜发现通用品牌"
 演示: "湿水都不破！"
 CTA: "限时特价！赶紧去抢！"`
-    navigator.clipboard.writeText(scriptText).then(() => {
+    navigator.clipboard.writeText(fullScriptText).then(() => {
       showToast("✅ 脚本文案已复制")
     }).catch(() => {
       showToast("📋 脚本文案已就绪")
     })
-  }, [showToast])
+  }, [showToast, scriptText])
 
   // 获取平台导出状态
   const getExportState = (platformId: PlatformId) =>
@@ -281,6 +381,20 @@ CTA: "限时特价！赶紧去抢！"`
       </header>
 
       <main className="mx-auto max-w-3xl px-6 py-10">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <LuLoader className="w-8 h-8 animate-spin text-muted-foreground" />
+            <span className="ml-3 text-muted-foreground">加载导出数据...</span>
+          </div>
+        ) : loadError ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <p className="text-destructive mb-2">{loadError}</p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              重新加载
+            </Button>
+          </div>
+        ) : (
+        <>
         {/* 完成提示 */}
         <div className="text-center mb-8">
           <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 mb-4">
@@ -548,6 +662,8 @@ CTA: "限时特价！赶紧去抢！"`
             发布项目 →
           </button>
         </div>
+        </>
+        )}
       </main>
     </div>
   )

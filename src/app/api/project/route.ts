@@ -23,28 +23,26 @@ export async function GET() {
 // 创建新项目
 export async function POST(req: NextRequest) {
   try {
-    console.log("📦 POST /api/project called");
     const body = await req.json();
-    console.log("📝 Request body:", JSON.stringify(body).substring(0, 500));
+    const id = crypto.randomUUID();
     const db = getDb();
-    console.log("✅ Database connected");
 
-    const newProject = await db
+    await db
       .insert(projects)
       .values({
+        id,
         name: body.name || "未命名项目",
         productName: body.productName,
         productCategory: body.productCategory,
         productDescription: body.productDescription,
         productImages: body.productImages || [],
-      })
-      .returning();
+      });
 
-    console.log("✅ Project created:", JSON.stringify(newProject));
-    return NextResponse.json(newProject[0], { status: 201 });
+    // MySQL 不支持 RETURNING，查回刚插入的记录
+    const [newProject] = await db.select().from(projects).where(eq(projects.id, id));
+    return NextResponse.json(newProject, { status: 201 });
   } catch (error) {
-    console.error("❌ 创建项目失败:", error);
-    console.error("❌ Error stack:", error instanceof Error ? error.stack : "N/A");
+    console.error("创建项目失败:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "创建项目失败" },
       { status: 500 }

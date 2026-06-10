@@ -166,10 +166,21 @@ export async function POST(request: NextRequest) {
 
     const newProject = await db
       .insert(projects)
-      .values(insertData)
-      .returning();
+      .values(insertData);
 
-    return NextResponse.json(newProject[0], { status: 201 });
+    // MySQL 不支持 RETURNING，查回记录
+    const id = (newProject as any)[0]?.insertId;
+    let project;
+    if (id) {
+      [project] = await db.select().from(projects).where(eq(projects.id, id));
+    }
+    if (!project) {
+      // fallback: 取最新创建的项目
+      const latest = await db.select().from(projects).orderBy(desc(projects.createdAt)).limit(1);
+      project = latest[0];
+    }
+
+    return NextResponse.json(project, { status: 201 });
   } catch (error) {
     console.error("创建项目失败:", error);
     return NextResponse.json(
@@ -210,15 +221,15 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // 逐个删除（SQLite 的 IN 语句对数组支持需要展开）
+    // 逐个删除
     // 由于项目表设置了 cascade 删除，关联的 scripts / assets / videoClips / compositions 会自动级联清理
     let deletedCount = 0;
     for (const id of idsToDelete) {
-      const result = await db
-        .delete(projects)
-        .where(eq(projects.id, id))
-        .returning();
-      deletedCount += result.length;
+      const [existing] = await db.select().from(projects).where(eq(projects.id, id));
+      if (existing) {
+        await db.delete(projects).where(eq(projects.id, id));
+        deletedCount++;
+      }
     }
 
     return NextResponse.json({

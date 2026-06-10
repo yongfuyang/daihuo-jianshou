@@ -10,7 +10,7 @@ export async function GET(
 ) {
   try {
     const { path } = await params;
-    const filePath = join("/tmp", "daihuo-uploads", ...path);
+    const filePath = join(process.cwd(), "data", ...path);
 
     if (!existsSync(filePath)) {
       return NextResponse.json({ error: "文件不存在" }, { status: 404 });

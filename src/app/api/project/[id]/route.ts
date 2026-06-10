@@ -36,17 +36,19 @@ export async function PATCH(
     const body = await req.json();
     const db = getDb();
 
-    const result = await db
+    await db
       .update(projects)
       .set({ ...body, updatedAt: new Date() })
-      .where(eq(projects.id, id))
-      .returning();
+      .where(eq(projects.id, id));
 
-    if (result.length === 0) {
+    // MySQL 不支持 RETURNING
+    const [updated] = await db.select().from(projects).where(eq(projects.id, id));
+
+    if (!updated) {
       return NextResponse.json({ error: "项目不存在" }, { status: 404 });
     }
 
-    return NextResponse.json(result[0]);
+    return NextResponse.json(updated);
   } catch (error) {
     console.error("更新项目失败:", error);
     return NextResponse.json({ error: "更新项目失败" }, { status: 500 });

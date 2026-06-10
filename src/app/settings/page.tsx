@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {LuPlus, LuTrash2, LuUser, LuStar, LuUpload, LuPalette} from "react-icons/lu";
+import { generateId } from "@/lib/utils";
 import { useSettingsStore } from "@/lib/stores/settings-store";
 import { useCharacterStore, type Character } from "@/lib/stores/project-store";
 import { useBrandStore } from "@/lib/stores/brand-store";
@@ -1085,7 +1086,7 @@ function CharacterManager() {
       });
     } else {
       addCharacter({
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: form.name,
         description: form.description,
         appearance: form.appearance,

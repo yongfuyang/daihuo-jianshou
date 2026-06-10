@@ -1,14 +1,14 @@
 import { defineConfig } from "drizzle-kit";
 
 export default defineConfig({
-  // schema 文件路径
   schema: "./src/lib/db/schema.ts",
-  // 迁移文件输出目录
   out: "./drizzle",
-  // 使用 SQLite 方言
-  dialect: "sqlite",
-  // 数据库连接配置
+  dialect: "mysql",
   dbCredentials: {
-    url: "./data/sqlite.db",
+    host: process.env.DB_HOST || "127.0.0.1",
+    port: Number(process.env.DB_PORT) || 3306,
+    user: process.env.DB_USER || "root",
+    password: process.env.DB_PASSWORD || "123456",
+    database: process.env.DB_NAME || "daihuo_jianshou",
   },
 });

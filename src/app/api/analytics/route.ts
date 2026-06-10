@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { projects, assets, compositions, videoClips, analyticsEvents } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { eq, sql, inArray } from "drizzle-orm";
 
 // 获取项目统计数据
@@ -117,15 +118,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const [newEvent] = await db
+    const eventId = crypto.randomUUID();
+    await db
       .insert(analyticsEvents)
       .values({
+        id: eventId,
         eventType: eventType as "video_generate" | "export" | "share",
         projectId: projectId || null,
         metadata: metadata || null,
-      })
-      .returning();
+      });
 
+    // MySQL 不支持 RETURNING
+    const [newEvent] = await db.select().from(analyticsEvents).where(eq(analyticsEvents.id, eventId));
     return NextResponse.json(newEvent, { status: 201 });
   } catch (error) {
     console.error("记录分析事件失败:", error);

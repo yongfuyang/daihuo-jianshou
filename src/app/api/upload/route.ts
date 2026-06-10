@@ -42,8 +42,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "无效的项目ID格式" }, { status: 400 });
   }
 
-  // 创建上传目录 — Render 上 data/ 不可写，用 /tmp
-  const uploadDir = join("/tmp", "daihuo-uploads", projectId);
+  // 创建上传目录
+  const uploadDir = join(process.cwd(), "data", "uploads", projectId);
   await mkdir(uploadDir, { recursive: true });
 
   const savedPaths: string[] = [];

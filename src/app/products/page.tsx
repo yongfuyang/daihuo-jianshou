@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import {LuPlus, LuTrash2, LuPencil, LuPackage, LuArrowLeft, LuImage, LuX} from "react-icons/lu";
+import { generateId } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -87,7 +88,7 @@ export default function ProductsPage() {
         .slice(0, remaining)
         .filter((f) => f.type.startsWith("image/"))
         .map((file) => ({
-          id: crypto.randomUUID(),
+          id: generateId(),
           url: URL.createObjectURL(file),
           file,
         }));
@@ -137,7 +138,7 @@ export default function ProductsPage() {
     // 将已有图片 URL 转为展示格式
     setImages(
       product.images.map((url) => ({
-        id: crypto.randomUUID(),
+        id: generateId(),
         url,
       }))
     );
@@ -163,7 +164,7 @@ export default function ProductsPage() {
     } else {
       // 新增模式
       const newProduct: ProductItem = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: name.trim(),
         category,
         description: description.trim() || undefined,

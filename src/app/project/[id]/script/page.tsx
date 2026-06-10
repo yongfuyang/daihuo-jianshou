@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import {LuWand, LuClock, LuImage, LuArrowRight, LuBookmarkPlus, LuLoader, LuSave, LuPencil, LuCheck, LuX, LuTrash2} from "react-icons/lu";
+import {LuWand, LuClock, LuImage, LuArrowRight, LuBookmarkPlus, LuLoader, LuSave, LuPencil, LuCheck, LuX, LuTrash2, LuPlus} from "react-icons/lu";
+import { generateId } from "@/lib/utils";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,60 +14,16 @@ import { Input } from "@/components/ui/input";
 import type { Shot } from "@/lib/db/schema";
 import { useTemplateStore } from "@/lib/stores/template-store";
 
-// 模拟生成的脚本数据
-const mockScripts = [
-  {
-    id: "s1",
-    title: "湿水不破的秘密",
-    styleType: "pain_point",
-    totalDuration: 25,
-    shots: [
-      { shotId: 1, type: "hook" as const, duration: 3, description: "手持手机第一人称视角，快步走进房间，画面略有晃动", camera: "手持跟拍", visualSource: "ai_generate" as const, transition: "ai_start_end" as const, voiceover: "你还在用产品核心卖点？", prompt: "First person POV walking into a bright modern room, slightly shaky handheld camera, cinematic" },
-      { shotId: 2, type: "pain_point" as const, duration: 4, description: "桌上一堆廉价商品碎屑，手拿普通商品沾水后碎裂", camera: "俯拍特写", visualSource: "ai_generate" as const, transition: "ai_start_end" as const, voiceover: "普通商品核心痛点，擦个嘴尴尬场景，太尴尬了", prompt: "Close-up overhead shot of cheap product paper disintegrating in water on a clean white table, dramatic lighting" },
-      { shotId: 3, type: "product_reveal" as const, duration: 3, description: "通用商品包装正面特写，缓慢推进", camera: "缓慢推进", visualSource: "product_image" as const, transition: "ai_start_end" as const, voiceover: "惊喜发现通用品牌", prompt: "" },
-      { shotId: 4, type: "demo" as const, duration: 5, description: "手拿通用商品浸入水中，拉扯展示韧性", camera: "中景固定", visualSource: "ai_generate" as const, transition: "ai_start_end" as const, voiceover: "湿水都不破！自己一直在用这个！拉扯都不会烂", prompt: "Hands holding premium product paper submerged in clear water, pulling and stretching to show strength, bright studio lighting" },
-      { shotId: 5, type: "cta" as const, duration: 3, description: "商品包装+价格标签+购物车图标", camera: "固定", visualSource: "product_image" as const, transition: "direct_concat" as const, voiceover: "限时特价！赶紧去抢！", prompt: "" },
-    ],
-  },
-  {
-    id: "s2",
-    title: "商品推广演示",
-    styleType: "comparison",
-    totalDuration: 28,
-    shots: [
-      { shotId: 1, type: "hook" as const, duration: 3, description: "办公桌上并排放着5款不同品牌的商品", camera: "俯拍全景", visualSource: "ai_generate" as const, transition: "ai_start_end" as const, voiceover: "预算投入买了5款商品，就为了告诉你哪款最值", prompt: "Overhead shot of 5 different product paper brands arranged neatly on a modern office desk, clean aesthetic" },
-      { shotId: 2, type: "demo" as const, duration: 8, description: "逐一测试每款商品的湿水强度", camera: "特写对比", visualSource: "ai_generate" as const, transition: "ai_start_end" as const, voiceover: "第一款，一碰水就烂...第二款也不行...这个居然还行？", prompt: "Split screen comparison of product papers being tested with water, some breaking apart, dramatic close-up" },
-      { shotId: 3, type: "product_reveal" as const, duration: 4, description: "通用商品特写展示", camera: "推进", visualSource: "product_image" as const, transition: "ai_start_end" as const, voiceover: "最终胜出的是——通用品牌！脱颖而出", prompt: "" },
-      { shotId: 4, type: "social_proof" as const, duration: 5, description: "展示销量数据和好评截图", camera: "固定", visualSource: "ai_generate" as const, transition: "ai_start_end" as const, voiceover: "月销50万+，好评率99%，不是没有原因的", prompt: "Clean data visualization showing sales numbers and positive reviews, modern UI style, dark background" },
-      { shotId: 5, type: "cta" as const, duration: 3, description: "商品展示+限时优惠信息", camera: "固定", visualSource: "product_image" as const, transition: "direct_concat" as const, voiceover: "链接在小黄车，今天下单还送湿巾！", prompt: "" },
-    ],
-  },
-  {
-    id: "s3",
-    title: "约会救星",
-    styleType: "story",
-    totalDuration: 22,
-    shots: [
-      { shotId: 1, type: "hook" as const, duration: 3, description: "女生精心化好妆准备约会，镜头前自信微笑", camera: "正面中景", visualSource: "ai_generate" as const, transition: "ai_start_end" as const, voiceover: "上周约会前发生了一件超尴尬的事", prompt: "Young Asian woman smiling confidently at camera after finishing makeup, warm bedroom lighting, cinematic" },
-      { shotId: 2, type: "pain_point" as const, duration: 4, description: "餐厅里擦嘴后脸上满是纸屑的尴尬特写", camera: "特写", visualSource: "ai_generate" as const, transition: "ai_start_end" as const, voiceover: "用餐厅的商品擦了一下嘴...尴尬状况", prompt: "Close-up of a woman's face with tiny paper residue near lips, embarrassed expression, restaurant lighting" },
-      { shotId: 3, type: "product_reveal" as const, duration: 3, description: "轻松取出通用商品的动作", camera: "特写", visualSource: "product_image" as const, transition: "ai_start_end" as const, voiceover: "还好我包里有通用品牌", prompt: "" },
-      { shotId: 4, type: "demo" as const, duration: 5, description: "用通用商品轻松完成，商品完整不掉屑", camera: "中景", visualSource: "ai_generate" as const, transition: "ai_start_end" as const, voiceover: "效果出众，商品完整不完美呈现，继续精彩！", prompt: "Woman elegantly using premium product, clean result, confident smile, warm restaurant ambiance" },
-      { shotId: 5, type: "cta" as const, duration: 2, description: "商品展示+下单引导", camera: "固定", visualSource: "product_image" as const, transition: "direct_concat" as const, voiceover: "姐妹们快囤起来！", prompt: "" },
-    ],
-  },
-  {
-    id: "s4",
-    title: "商品展示",
-    styleType: "product_showcase",
-    totalDuration: 18,
-    shots: [
-      { shotId: 1, type: "hook" as const, duration: 3, description: "镜头从商品底部缓缓上推，聚焦在商品整体包装上，背景纯净明亮", camera: "缓慢上推", visualSource: "product_image" as const, transition: "ai_start_end" as const, voiceover: "这就是你一直在找的好商品！", prompt: "Slow push-up shot of product packaging, clean bright background, minimalist aesthetic, professional product photography lighting" },
-      { shotId: 2, type: "product_reveal" as const, duration: 4, description: "商品特写展示，镜头环绕半圈展现细节，光线均匀通透", camera: "环绕展示", visualSource: "product_image" as const, transition: "ai_start_end" as const, voiceover: "高品质材质，每一个细节都经得起放大镜的审视", prompt: "Close-up product showcase with gentle orbit camera movement around the product, bright even lighting highlighting details, premium texture clearly visible" },
-      { shotId: 3, type: "demo" as const, duration: 5, description: "手持商品进行展示，自然光线下多角度呈现", camera: "手持跟拍", visualSource: "product_image" as const, transition: "ai_start_end" as const, voiceover: "拿到手你就知道，这质感绝对对得起价格", prompt: "Hand holding the product in natural light, rotating to show multiple angles, casual authentic vibe, lifestyle photography style" },
-      { shotId: 4, type: "cta" as const, duration: 3, description: "商品全景+价格信息+购买引导", camera: "固定", visualSource: "product_image" as const, transition: "direct_concat" as const, voiceover: "点击链接立即购买，今天下单还有惊喜！" },
-    ],
-  },
-];
+// 脚本数据类型（从 API 返回的结构）
+interface ScriptData {
+  id: string;
+  projectId: string;
+  styleType: string;
+  title: string;
+  totalDuration: number;
+  shots: Shot[];
+  selected: boolean;
+}
 
 // 镜头类型标签
 const shotTypeLabels: Record<Shot["type"], { label: string; color: string }> = {
@@ -89,26 +46,39 @@ const styleLabels: Record<string, string> = {
 export default function ScriptPage() {
   const { id } = useParams<{ id: string }>();
   const [selectedScript, setSelectedScript] = useState(0);
-  const [scripts, setScripts] = useState(mockScripts);
+  const [scripts, setScripts] = useState<ScriptData[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [editingShot, setEditingShot] = useState<number | null>(null);
   const [editDescriptions, setEditDescriptions] = useState<Record<number, string>>({});
   const [editVoiceovers, setEditVoiceovers] = useState<Record<number, string>>({});
   const [editScriptText, setEditScriptText] = useState("");
   const [savedTip, setSavedTip] = useState(false);
+  const [editingScriptTitle, setEditingScriptTitle] = useState<number | null>(null);
+  const [editTitleValue, setEditTitleValue] = useState("");
 
+  // 从 API 加载脚本数据
   useEffect(() => {
-    // 优先从 sessionStorage 读取生成的脚本（从新建页面跳转而来）
-    try {
-      const stored = sessionStorage.getItem(`scripts_${id}`);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        // 不删除 sessionStorage，素材页面还需要读取
-        setScripts(parsed);
-        return;
+    if (!id) return;
+    const fetchScripts = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const res = await fetch(`/api/scripts?projectId=${id}`);
+        if (!res.ok) throw new Error(`加载脚本失败 (${res.status})`);
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setScripts(data);
+        }
+      } catch (e) {
+        console.error("加载脚本失败:", e);
+        setLoadError(e instanceof Error ? e.message : "加载脚本失败");
+      } finally {
+        setIsLoading(false);
       }
-    } catch {}
-    setScripts(mockScripts);
+    };
+    fetchScripts();
   }, [id]);
 
   // 同步文案编辑textarea与当前脚本
@@ -140,16 +110,27 @@ export default function ScriptPage() {
       cancelEditingShot();
       return;
     }
-    setScripts(prev => prev.map(script => ({
+    const updatedScripts = scripts.map(script => ({
       ...script,
       shots: script.shots.map(shot =>
         shot.shotId === shotId
-          ? { ...shot, description: desc, voiceover: voice }
+          ? { ...shot, description: desc ?? shot.description, voiceover: voice ?? shot.voiceover }
           : shot
       )
-    })));
+    }));
+    setScripts(updatedScripts);
     cancelEditingShot();
     showSavedTip();
+    // Persist to API in background
+    if (currentScript) {
+      fetch(`/api/scripts/${currentScript.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shots: updatedScripts.find(s => s.id === currentScript.id)?.shots,
+        }),
+      }).catch(e => console.error("保存分镜失败:", e));
+    }
   };
 
   const showSavedTip = () => {
@@ -173,9 +154,25 @@ export default function ScriptPage() {
     showSavedTip();
   };
 
-  const saveEditedScript = () => {
-    sessionStorage.setItem(`scripts_${id}`, JSON.stringify(scripts));
-    showSavedTip();
+  const saveEditedScript = async () => {
+    try {
+      // 逐个保存已修改的脚本到 API
+      for (const script of scripts) {
+        await fetch(`/api/scripts/${script.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            shots: script.shots,
+            title: script.title,
+            totalDuration: script.totalDuration,
+          }),
+        });
+      }
+      showSavedTip();
+    } catch (e) {
+      console.error("保存脚本失败:", e);
+      alert("保存失败，请重试");
+    }
   };
 
   // ===== 模板相关状态 =====
@@ -202,21 +199,41 @@ export default function ScriptPage() {
       });
       if (!response.ok) throw new Error("生成失败");
       const data = await response.json();
-      setScripts(data.scripts);
-      sessionStorage.setItem(`scripts_${id}`, JSON.stringify(data.scripts));
+      // Save generated scripts to DB via API
+      if (data.scripts && Array.isArray(data.scripts)) {
+        const saveRes = await fetch("/api/scripts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: id,
+            scriptList: data.scripts.map((s: any) => ({
+              styleType: s.styleType,
+              title: s.title,
+              totalDuration: s.totalDuration,
+              shots: s.shots,
+            })),
+          }),
+        });
+        if (saveRes.ok) {
+          const saved = await saveRes.json();
+          setScripts(saved);
+        } else {
+          setScripts(data.scripts);
+        }
+      }
     } catch (e) {
       console.error("生成脚本失败:", e);
       alert("生成失败，请重试");
     } finally {
       setIsGenerating(false);
     }
-  }, [id]);
+  }, [id, currentScript]);
 
   /** 确认保存模板 */
   const doSaveTemplate = () => {
     if (!templateName.trim() || !currentScript) return;
     addTemplate({
-      id: crypto.randomUUID(),
+      id: generateId(),
       name: templateName.trim(),
       styleType: currentScript.styleType,
       shots: currentScript.shots as Shot[],
@@ -227,6 +244,139 @@ export default function ScriptPage() {
     setShowSaveDialog(false);
     setSavedTip(true);
     setTimeout(() => setSavedTip(false), 3000);
+  };
+
+  // ===== 新增脚本 =====
+  const handleAddScript = async () => {
+    try {
+      // 用 PATCH 的 body 中传 action=add 来区分，或者直接用 POST 但只发一条
+      // 这里用 PATCH /api/scripts?projectId=X 的方式不太好，直接插入
+      const newId = generateId();
+      const res = await fetch("/api/scripts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: id,
+          scriptList: [
+            ...scripts.map(s => ({
+              styleType: s.styleType,
+              title: s.title,
+              totalDuration: s.totalDuration,
+              shots: s.shots,
+            })),
+            { styleType: "custom", title: "新脚本", totalDuration: 0, shots: [] },
+          ],
+        }),
+      });
+      if (!res.ok) throw new Error("新增脚本失败");
+      const saved = await res.json();
+      setScripts(saved);
+      setSelectedScript(saved.length - 1);
+    } catch (e) {
+      console.error("新增脚本失败:", e);
+      alert("新增脚本失败，请重试");
+    }
+  };
+
+  // ===== 删除脚本 =====
+  const handleDeleteScript = async (index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const script = scripts[index];
+    if (!confirm(`确定删除脚本「${script.title}」？此操作不可撤销。`)) return;
+    try {
+      const res = await fetch(`/api/scripts/${script.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("删除失败");
+      const newScripts = scripts.filter((_, i) => i !== index);
+      setScripts(newScripts);
+      // 调整选中索引
+      if (selectedScript >= newScripts.length) {
+        setSelectedScript(Math.max(0, newScripts.length - 1));
+      } else if (selectedScript > index) {
+        setSelectedScript(selectedScript - 1);
+      } else if (selectedScript === index) {
+        setSelectedScript(Math.min(index, newScripts.length - 1));
+      }
+    } catch (e) {
+      console.error("删除脚本失败:", e);
+      alert("删除脚本失败，请重试");
+    }
+  };
+
+  // ===== 脚本改名 =====
+  const startEditingTitle = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingScriptTitle(index);
+    setEditTitleValue(scripts[index].title);
+  };
+
+  const confirmTitleEdit = async () => {
+    if (editingScriptTitle === null) return;
+    const newTitle = editTitleValue.trim() || scripts[editingScriptTitle].title;
+    const script = scripts[editingScriptTitle];
+    setScripts(prev => prev.map((s, i) => i === editingScriptTitle ? { ...s, title: newTitle } : s));
+    setEditingScriptTitle(null);
+    // 保存到 API
+    try {
+      await fetch(`/api/scripts/${script.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTitle }),
+      });
+    } catch (e) {
+      console.error("保存标题失败:", e);
+    }
+  };
+
+  // ===== 删除分镜 =====
+  const handleDeleteShot = async (shotId: number) => {
+    if (!currentScript) return;
+    const shot = currentScript.shots.find(s => s.shotId === shotId);
+    if (!confirm(`确定删除分镜${shot ? `「${shot.description?.slice(0, 20) || '#' + shotId}」` : ''}？`)) return;
+    const updatedShots = currentScript.shots.filter(s => s.shotId !== shotId);
+    const updatedScripts = scripts.map((s, i) =>
+      i === selectedScript ? { ...s, shots: updatedShots, totalDuration: updatedShots.reduce((sum, sh) => sum + sh.duration, 0) } : s
+    );
+    setScripts(updatedScripts);
+    if (editingShot === shotId) cancelEditingShot();
+    try {
+      await fetch(`/api/scripts/${currentScript.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shots: updatedShots, totalDuration: updatedShots.reduce((sum, sh) => sum + sh.duration, 0) }),
+      });
+    } catch (e) {
+      console.error("删除分镜失败:", e);
+    }
+  };
+
+  // ===== 新增分镜 =====
+  const handleAddShot = () => {
+    if (!currentScript) return;
+    const maxShotId = currentScript.shots.reduce((max, s) => Math.max(max, s.shotId), 0);
+    const newShotId = maxShotId + 1;
+    const newShot: Shot = {
+      shotId: newShotId,
+      type: "hook",
+      duration: 3,
+      description: "",
+      camera: "中景",
+      visualSource: "ai_generate",
+      transition: "ai_start_end",
+      voiceover: "",
+    };
+    const updatedShots = [...currentScript.shots, newShot];
+    const updatedScripts = scripts.map((s, i) =>
+      i === selectedScript ? { ...s, shots: updatedShots, totalDuration: updatedShots.reduce((sum, sh) => sum + sh.duration, 0) } : s
+    );
+    setScripts(updatedScripts);
+    // 自动进入编辑模式
+    startEditingShot(newShotId);
+    // 保存到 API
+    fetch(`/api/scripts/${currentScript.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shots: updatedShots, totalDuration: updatedShots.reduce((sum, sh) => sum + sh.duration, 0) }),
+    }).catch(e => console.error("保存新分镜失败:", e));
   };
 
   return (
@@ -266,11 +416,35 @@ export default function ScriptPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-8">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <LuLoader className="w-8 h-8 animate-spin text-muted-foreground" />
+            <span className="ml-3 text-muted-foreground">加载脚本数据...</span>
+          </div>
+        ) : loadError ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <p className="text-destructive mb-2">{loadError}</p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              重新加载
+            </Button>
+          </div>
+        ) : scripts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <p className="text-muted-foreground mb-2">暂无脚本数据</p>
+            <Button variant="outline" size="sm" onClick={() => {
+              if (currentScript) handleRegenerate();
+            }}>
+              生成脚本
+            </Button>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 左侧：脚本方案选择 */}
           <div className="lg:col-span-1">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold">脚本方案</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-semibold">脚本方案 <span className="text-xs text-green-400">v2</span></h2>
+              </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" className="text-xs" onClick={saveEditedScript}>
                   <LuSave className="w-3.5 h-3.5 mr-1" />
@@ -304,14 +478,41 @@ export default function ScriptPage() {
                 <Card
                   key={script.id}
                   className={`cursor-pointer transition-all ${selectedScript === index ? "ring-2 ring-primary neon-glow" : "glass-card card-hover"}`}
-                  onClick={() => setSelectedScript(index)}
+                  onClick={() => { if (editingScriptTitle !== index) setSelectedScript(index); }}
                 >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-medium text-sm">{script.title}</h3>
-                      <Badge variant="secondary" className="text-xs shrink-0 ml-2">
-                        {styleLabels[script.styleType]}
-                      </Badge>
+                  <CardContent className="px-2 py-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1" onDoubleClick={(e) => startEditingTitle(index, e)}>
+                        {editingScriptTitle === index ? (
+                          <Input
+                            value={editTitleValue}
+                            onChange={(e) => setEditTitleValue(e.target.value)}
+                            onBlur={confirmTitleEdit}
+                            onKeyDown={(e) => { if (e.key === "Enter") confirmTitleEdit(); if (e.key === "Escape") setEditingScriptTitle(null); }}
+                            className="text-sm h-6"
+                            onClick={(e) => e.stopPropagation()}
+                            autoFocus
+                          />
+                        ) : (
+                          <>
+                            <h3 className="font-medium text-sm truncate">{script.title}</h3>
+                            <Badge variant="secondary" className="text-[10px] shrink-0">
+                              {styleLabels[script.styleType]}
+                            </Badge>
+                          </>
+                        )}
+                      </div>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "2px", marginLeft: "4px" }}>
+                        <button className="icon-btn text-muted-foreground hover:text-primary" onClick={(e) => startEditingTitle(index, e)} title="重命名">
+                          <LuPencil style={{ width: 12, height: 12 }} />
+                        </button>
+                        <button className="icon-btn text-muted-foreground hover:text-red-500" onClick={(e) => handleDeleteScript(index, e)} title="删除脚本">
+                          <LuTrash2 style={{ width: 12, height: 12 }} />
+                        </button>
+                        <button className="icon-btn text-muted-foreground hover:text-primary" onClick={(e) => { e.stopPropagation(); handleAddScript(); }} title="新增脚本">
+                          <LuPlus style={{ width: 12, height: 12 }} />
+                        </button>
+                      </span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span>{script.shots.length} 个镜头</span>
@@ -426,15 +627,19 @@ export default function ScriptPage() {
                                     </div>
                                   )}
                                 </div>
-                                {/* 编辑按钮和画面预览区 */}
-                                <div className="flex flex-col gap-2 shrink-0">
-                                  <button
-                                    onClick={() => startEditingShot(shot.shotId)}
-                                    className="p-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                                    title="编辑此分镜"
-                                  >
-                                    <LuPencil className="w-4 h-4" />
-                                  </button>
+                                {/* 操作按钮和画面预览区 */}
+                                <div className="flex flex-col items-end gap-2 shrink-0">
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "2px" }}>
+                                    <button className="icon-btn text-muted-foreground hover:text-primary" onClick={() => startEditingShot(shot.shotId)} title="编辑此分镜">
+                                      <LuPencil style={{ width: 14, height: 14 }} />
+                                    </button>
+                                    <button className="icon-btn text-muted-foreground hover:text-red-500" onClick={() => handleDeleteShot(shot.shotId)} title="删除此分镜">
+                                      <LuTrash2 style={{ width: 14, height: 14 }} />
+                                    </button>
+                                    <button className="icon-btn text-muted-foreground hover:text-primary" onClick={handleAddShot} title="在末尾添加分镜">
+                                      <LuPlus style={{ width: 14, height: 14 }} />
+                                    </button>
+                                  </span>
                                   <div className="w-14 h-10 bg-muted/30 rounded-md shrink-0 flex items-center justify-center border border-border/30">
                                     {shot.visualSource === "product_image" ? (
                                       <span className="text-[8px] text-muted-foreground">商品图</span>
@@ -487,6 +692,7 @@ export default function ScriptPage() {
             </Tabs>
           </div>
         </div>
+        )}
       </main>
 
       {/* 保存模板弹窗 */}

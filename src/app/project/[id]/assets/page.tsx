@@ -22,46 +22,23 @@ interface AssetItem {
   thumbnailUrl?: string;
 }
 
-// 模拟脚本分镜数据
-const initialAssets: AssetItem[] = [
-  { shotId: 1, type: "hook", duration: 3, description: "通用商品展示", prompt: "", visualSource: "ai_generate", status: "pending" },
-  { shotId: 2, type: "pain_point", duration: 4, description: "通用痛点展示", prompt: "", visualSource: "ai_generate", status: "pending" },
-  { shotId: 3, type: "product_reveal", duration: 3, description: "通用产品展示", prompt: "", visualSource: "product_image", status: "done", thumbnailUrl: "" },
-  { shotId: 4, type: "demo", duration: 5, description: "通用演示", prompt: "", visualSource: "ai_generate", status: "pending" },
-  { shotId: 5, type: "cta", duration: 3, description: "通用转化引导", prompt: "", visualSource: "product_image", status: "done", thumbnailUrl: "" },
-];
+// 项目数据类型（从 API 返回）
+interface ProjectData {
+  id: string;
+  name: string;
+  productName: string;
+  productImages: string[];
+}
 
-// 从 sessionStorage 读取脚本数据并转换为 AssetItem 数组
-function getAssetsFromSessionStorage(id: string): AssetItem[] | null {
-  try {
-    if (typeof window === "undefined") return null;
-    const stored = sessionStorage.getItem(`scripts_${id}`);
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    // parsed 可能是 { shots: [...], title: "...", totalDuration: ... } 或直接是 [{ shots: [...] }]
-    let shots: any[] = [];
-    if (Array.isArray(parsed)) {
-      // 多个脚本，取第一个
-      const first = parsed[0];
-      if (first.shots) shots = first.shots;
-      else shots = parsed;
-    } else if (parsed.shots) {
-      shots = parsed.shots;
-    }
-    if (!shots.length) return null;
-
-    return shots.map((shot: any, index: number) => ({
-      shotId: shot.shotId || index + 1,
-      type: (shot.type as AssetItem["type"]) || "hook",
-      duration: shot.duration || 3,
-      description: shot.description || `分镜 ${index + 1}`,
-      prompt: shot.prompt || shot.description || "",
-      visualSource: (shot.visualSource as AssetItem["visualSource"]) || "ai_generate",
-      status: "pending" as const,
-    }));
-  } catch {
-    return null;
-  }
+// 脚本数据类型（从 API 返回）
+interface ScriptData {
+  id: string;
+  projectId: string;
+  styleType: string;
+  title: string;
+  totalDuration: number;
+  shots: Shot[];
+  selected: boolean;
 }
 
 // 镜头类型标签
@@ -76,10 +53,10 @@ const shotTypeLabels: Record<Shot["type"], { label: string; color: string }> = {
 
 export default function AssetsPage() {
   const { id } = useParams<{ id: string }>();
-  const [assets, setAssets] = useState<AssetItem[]>(() => {
-    const stored = getAssetsFromSessionStorage(id);
-    return stored || initialAssets;
-  });
+  const [assets, setAssets] = useState<AssetItem[]>([]);
+  const [project, setProject] = useState<ProjectData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isBatchGenerating, setIsBatchGenerating] = useState(false);
 
   const doneCount = assets.filter((a) => a.status === "done").length;
@@ -88,17 +65,58 @@ export default function AssetsPage() {
   // 读取用户配置的 LLM 信息
   const llm = useSettingsStore((s) => s.llm);
 
-  // 读取商品名和商品图
-  const productName = typeof window !== "undefined"
-    ? sessionStorage.getItem(`productName_${id}`) || ""
-    : "";
-  const productImageBase64 = typeof window !== "undefined"
-    ? sessionStorage.getItem(`productImage_${id}`) || ""
-    : "";
+  // 从项目数据中读取商品名和商品图
+  const productName = project?.productName || "";
+  const productImages = project?.productImages || [];
+  const productImageBase64 = productImages.length > 0 ? productImages[0] : "";
+
+  // 从 API 加载项目数据和脚本数据
+  useEffect(() => {
+    if (!id) return;
+    const fetchData = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        // 并行加载项目和脚本数据
+        const [projectRes, scriptsRes] = await Promise.all([
+          fetch(`/api/project/${id}`),
+          fetch(`/api/scripts?projectId=${id}`),
+        ]);
+
+        if (!projectRes.ok) throw new Error(`加载项目失败 (${projectRes.status})`);
+        const projectData = await projectRes.json();
+        setProject(projectData);
+
+        if (scriptsRes.ok) {
+          const scriptsData: ScriptData[] = await scriptsRes.json();
+          if (Array.isArray(scriptsData) && scriptsData.length > 0) {
+            // 使用选中脚本的 shots，如果没有选中的则用第一个
+            const selectedScript = scriptsData.find(s => s.selected) || scriptsData[0];
+            const assetItems: AssetItem[] = selectedScript.shots.map((shot, index) => ({
+              shotId: shot.shotId || index + 1,
+              type: shot.type,
+              duration: shot.duration || 3,
+              description: shot.description || `分镜 ${index + 1}`,
+              prompt: shot.prompt || shot.description || "",
+              visualSource: shot.visualSource || "ai_generate",
+              status: "pending" as const,
+            }));
+            setAssets(assetItems);
+          }
+        }
+      } catch (e) {
+        console.error("加载数据失败:", e);
+        setLoadError(e instanceof Error ? e.message : "加载数据失败");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [id]);
 
   // 如果有商品图，作为所有分镜的默认缩略图
   useEffect(() => {
-    if (productImageBase64 && !assets[0]?.thumbnailUrl) {
+    if (productImageBase64 && assets.length > 0 && !assets[0]?.thumbnailUrl) {
       setAssets((prev) =>
         prev.map((a) => ({
           ...a,
@@ -107,7 +125,7 @@ export default function AssetsPage() {
         }))
       );
     }
-  }, []);
+  }, [productImageBase64, assets]);
 
   // 调用真实生图 API（尝试基于商品图生成创意场景），所有分镜都以上传的商品图为参考
   const generateOne = useCallback(async (shotId: number) => {
@@ -165,13 +183,6 @@ export default function AssetsPage() {
     }
   }, [assets, llm]);
 
-  // 将资产信息保存到sessionStorage，供video页面读取
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(`assets_${id}`, JSON.stringify(assets));
-    } catch {}
-  }, [assets, id]);
-
   // 一键全部生成
   const generateAll = useCallback(() => {
     const pending = assets.filter((a) => a.status === "pending" || a.status === "failed");
@@ -225,6 +236,20 @@ export default function AssetsPage() {
       </header>
 
       <main className="mx-auto max-w-4xl px-6 py-8">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <LuLoader className="w-8 h-8 animate-spin text-muted-foreground" />
+            <span className="ml-3 text-muted-foreground">加载素材数据...</span>
+          </div>
+        ) : loadError ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <p className="text-destructive mb-2">{loadError}</p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              重新加载
+            </Button>
+          </div>
+        ) : (
+        <>
         {/* 操作栏 */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -373,6 +398,8 @@ export default function AssetsPage() {
             </Button>
           </Link>
         </div>
+        </>
+        )}
       </main>
     </div>
   );

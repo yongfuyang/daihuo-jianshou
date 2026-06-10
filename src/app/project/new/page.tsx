@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {LuArrowLeft, LuUpload, LuX, LuCircleAlert, LuZap, LuUser, LuUserX, LuBox, LuLayoutGrid, LuEye, LuVideo, LuBookmark} from "react-icons/lu";
+import { generateId } from "@/lib/utils";
 import { useCharacterStore } from "@/lib/stores/project-store";
 import { useTemplateStore } from "@/lib/stores/template-store";
 import { useSettingsStore } from "@/lib/stores/settings-store";
@@ -132,7 +133,7 @@ export default function NewProjectPage() {
         .slice(0, remaining)
         .filter((f) => f.type.startsWith("image/"))
         .map((file) => ({
-          id: crypto.randomUUID(),
+          id: generateId(),
           url: URL.createObjectURL(file),
           file,
         }));
@@ -201,22 +202,36 @@ export default function NewProjectPage() {
       }
       const project = await projectRes.json();
 
-      // 第2步：将图片编码为 base64 data URL（跳过文件上传，直接存到项目）
-      setProgress({ step: "uploading", percent: 35, message: "正在处理商品图片..." });
-      const paths: string[] = [];
-      for (const img of images) {
-        const dataUrl = await new Promise<string>((resolve, reject) => {
+      // 第2步：上传图片到服务器，获取持久化路径
+      setProgress({ step: "uploading", percent: 35, message: "正在上传商品图片..." });
+
+      // 读取第一张图片为 base64，用于 LLM 视觉分析
+      let firstImageBase64: string | null = null;
+      if (images.length > 0) {
+        firstImageBase64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
-          reader.readAsDataURL(img.file);
+          reader.readAsDataURL(images[0].file);
         });
-        paths.push(dataUrl);
       }
-      // 保存第一张商品图作为后续图生图的参考
-      if (paths[0]) {
-        sessionStorage.setItem(`productImage_${project.id}`, paths[0]);
+
+      // 通过 API 上传所有图片，获取持久化路径
+      const uploadFormData = new FormData();
+      uploadFormData.append("projectId", project.id);
+      for (const img of images) {
+        uploadFormData.append("files", img.file);
       }
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        body: uploadFormData,
+      });
+      if (!uploadRes.ok) {
+        const errData = await uploadRes.json().catch(() => ({}));
+        throw new Error(`图片上传失败 (${uploadRes.status}): ${errData.error || uploadRes.statusText}`);
+      }
+      const uploadData = await uploadRes.json();
+      const imagePaths: string[] = uploadData.paths || [];
 
       // 第3步：生成脚本
       setProgress({ step: "generating", percent: 60, message: "AI 正在分析商品并生成脚本..." });
@@ -283,10 +298,10 @@ ${platforms.length ? `投放平台: ${platforms.join(",")}` : ""}
             { role: "system", content: systemPrompt },
             {
               role: "user",
-              content: paths.length > 0
+              content: firstImageBase64
                 ? [
                     { type: "text", text: userPrompt },
-                    { type: "image_url", image_url: { url: paths[0], detail: "high" } },
+                    { type: "image_url", image_url: { url: firstImageBase64, detail: "high" } },
                   ]
                 : userPrompt,
             },
@@ -367,12 +382,39 @@ ${platforms.length ? `投放平台: ${platforms.join(",")}` : ""}
 
       // 使用了模板时递增使用次数
 
-      // 第4步：保存脚本、商品信息和第一张商品图到 sessionStorage
-      sessionStorage.setItem(`scripts_${project.id}`, JSON.stringify(scripts));
-      sessionStorage.setItem(`productName_${project.id}`, productName);
-      if (paths.length > 0) {
-        sessionStorage.setItem(`productImage_${project.id}`, paths[0]);
+      // 第4步：保存脚本到数据库
+      setProgress({ step: "saving", percent: 85, message: "正在保存脚本到数据库..." });
+      const scriptsRes = await fetch("/api/scripts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: project.id,
+          scriptList: scripts.map((s: any) => ({
+            styleType: s.styleType || scriptStyle,
+            title: s.title,
+            totalDuration: s.totalDuration,
+            shots: s.shots,
+          })),
+        }),
+      });
+      if (!scriptsRes.ok) {
+        const errData = await scriptsRes.json().catch(() => ({}));
+        throw new Error(`脚本保存失败 (${scriptsRes.status}): ${errData.error || scriptsRes.statusText}`);
       }
+
+      // 第5步：更新项目的商品图片路径
+      if (imagePaths.length > 0) {
+        const updateRes = await fetch(`/api/project/${project.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ productImages: imagePaths }),
+        });
+        if (!updateRes.ok) {
+          const errData = await updateRes.json().catch(() => ({}));
+          throw new Error(`项目更新失败 (${updateRes.status}): ${errData.error || updateRes.statusText}`);
+        }
+      }
+
       setProgress({ step: "done", percent: 100, message: "脚本生成完成！正在跳转..." });
       await new Promise((r) => setTimeout(r, 800));
       router.push(`/project/${project.id}/script`);
