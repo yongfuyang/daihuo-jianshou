@@ -4,12 +4,13 @@ import { join } from "path";
 import { existsSync } from "fs";
 
 // 静态文件服务 - 提供上传的图片/视频访问
+// 支持 data/uploads/ 和 data/output/ 两个目录
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const { path } = await params;
-  const filePath = join(process.cwd(), "data", "uploads", ...path);
+  const { path: pathSegments } = await params;
+  const filePath = join(process.cwd(), "data", ...pathSegments);
 
   if (!existsSync(filePath)) {
     return NextResponse.json({ error: "文件不存在" }, { status: 404 });

@@ -6,6 +6,7 @@ import { LuArrowLeft, LuUpload, LuX, LuCircleAlert, LuZap, LuUser, LuUserX, LuBo
 import { useCharacterStore } from "@/lib/stores/project-store";
 import { useTemplateStore } from "@/lib/stores/template-store";
 import { useSettingsStore } from "@/lib/stores/settings-store";
+import { generateId } from "@/lib/utils";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -109,7 +110,7 @@ export default function NewProjectPage() {
         .slice(0, remaining)
         .filter((f) => f.type.startsWith("image/"))
         .map((file) => ({
-          id: crypto.randomUUID(),
+          id: generateId(),
           url: URL.createObjectURL(file),
           file,
         }));
@@ -241,6 +242,19 @@ export default function NewProjectPage() {
         incrementUseCount(selectedTemplateId);
       }
       if (!scriptRes.ok) throw new Error("脚本生成失败，请检查 LLM 设置后重试");
+      const scriptData = await scriptRes.json();
+
+      // 第3.5步：保存脚本到数据库
+      if (scriptData.scripts?.length > 0) {
+        await fetch("/api/scripts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: project.id,
+            scriptList: scriptData.scripts,
+          }),
+        });
+      }
 
       // 第4步：完成
       setProgress({ step: "done", percent: 100, message: "脚本生成完成！正在跳转..." });

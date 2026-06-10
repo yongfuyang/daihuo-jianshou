@@ -1,30 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { LuSettings, LuPlus, LuZap, LuVideo, LuFilm, LuPackage, LuTriangleAlert } from "react-icons/lu";
+import { useState, useEffect } from "react";
+import { LuSettings, LuPlus, LuZap, LuVideo, LuFilm, LuPackage, LuTriangleAlert, LuTrash2 } from "react-icons/lu";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useSettingsStore } from "@/lib/stores/settings-store";
 
-// 模拟项目数据（后续接数据库）
-const mockProjects = [
-  {
-    id: "1",
-    name: "Tempo 德宝纸巾推广",
-    productName: "德宝纸巾",
-    status: "video" as const,
-    updatedAt: new Date("2026-03-20"),
-  },
-  {
-    id: "2",
-    name: "小米手环8测评",
-    productName: "小米手环8",
-    status: "done" as const,
-    updatedAt: new Date("2026-03-19"),
-  },
-];
+// 项目数据类型
+interface ProjectItem {
+  id: string;
+  name: string;
+  productName: string | null;
+  status: string;
+  productImages: string[] | null;
+  updatedAt: string;
+  createdAt: string;
+}
 
 const statusMap: Record<string, { label: string; color: string }> = {
   draft: { label: "草稿", color: "bg-zinc-500/20 text-zinc-400" },
@@ -36,7 +29,19 @@ const statusMap: Record<string, { label: string; color: string }> = {
 };
 
 export default function HomePage() {
-  const [projects] = useState(mockProjects);
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 从 API 加载项目列表
+  useEffect(() => {
+    fetch("/api/project")
+      .then((res) => res.ok ? res.json() : [])
+      .then((data) => {
+        setProjects(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setProjects([]))
+      .finally(() => setIsLoading(false));
+  }, []);
 
   // 检查是否已配置 API 服务
   const { llm, providers } = useSettingsStore();
@@ -198,7 +203,14 @@ export default function HomePage() {
             <span className="text-sm text-muted-foreground">{projects.length} 个项目</span>
           </div>
 
-          {projects.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <svg className="animate-spin h-6 w-6 text-primary" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            </div>
+          ) : projects.length === 0 ? (
             <Card className="glass-card">
               <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted/50">
@@ -213,32 +225,61 @@ export default function HomePage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {projects.map((project) => {
-                const status = statusMap[project.status];
+                const status = statusMap[project.status] || statusMap.draft;
+                const dateStr = project.updatedAt
+                  ? new Date(project.updatedAt).toLocaleDateString("zh-CN")
+                  : new Date(project.createdAt).toLocaleDateString("zh-CN");
+                const coverImage = project.productImages?.[0];
                 return (
-                  <Link key={project.id} href={`/project/${project.id}/script`}>
-                    <Card className="card-hover glass-card cursor-pointer group">
-                      <CardContent className="p-0">
-                        <div className="relative aspect-video bg-muted/30 rounded-t-lg overflow-hidden">
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <LuFilm className="w-8 h-8 text-muted-foreground/50" />
+                  <div key={project.id}>
+                    <Link href={`/project/${project.id}/script`}>
+                      <Card className="card-hover glass-card cursor-pointer group">
+                        <CardContent className="p-0">
+                          <div className="relative aspect-video bg-muted/30 rounded-t-lg overflow-hidden">
+                            {coverImage ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={coverImage} alt={project.name} className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <LuFilm className="w-8 h-8 text-muted-foreground/50" />
+                              </div>
+                            )}
+                            <div className="absolute top-2 right-2">
+                              <Badge className={`${status.color} border-0 text-xs`}>
+                                {status.label}
+                              </Badge>
+                            </div>
                           </div>
-                          <div className="absolute top-2 right-2">
-                            <Badge className={`${status.color} border-0 text-xs`}>
-                              {status.label}
-                            </Badge>
+                          <div className="p-4 flex items-center justify-between">
+                            <div className="min-w-0 flex-1">
+                              <h3 className="font-medium text-sm truncate group-hover:text-primary transition-colors">
+                                {project.name}
+                              </h3>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {project.productName || "未设置商品"} · {dateStr}
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive ml-2"
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (confirm(`确定删除项目「${project.name}」吗？此操作不可恢复。`)) {
+                                  await fetch(`/api/project/${project.id}`, { method: "DELETE" });
+                                  setProjects((prev) => prev.filter((p) => p.id !== project.id));
+                                }
+                              }}
+                              title="删除项目"
+                            >
+                              <LuTrash2 className="w-3.5 h-3.5" />
+                            </Button>
                           </div>
-                        </div>
-                        <div className="p-4">
-                          <h3 className="font-medium text-sm truncate group-hover:text-primary transition-colors">
-                            {project.name}
-                          </h3>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {project.productName} · {project.updatedAt.toLocaleDateString("zh-CN")}
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  </div>
                 );
               })}
             </div>
